@@ -1,0 +1,315 @@
+#!/bin/bash
+# (c) 2013 Samium Gromoff <_deepfire@feelingofgreen.ru>
+# Licensed under the terms of the GNU GPL License version 3 and higher
+
+set -e
+
+usage() {
+    cat <<EOF
+  Usage:
+    $0 OPTIONS* BRANCH TO-COMMIT [FROM-COMMIT]
+
+  "Welds" FROM-COMMIT into TO-COMMIT,
+  then rebases BRANCH atop the new commit.
+
+  When BRANCH equals to a special value "HEAD" (or "."), it is interpreted
+  as specifying the currently checked out branch.
+
+  When COMMIT is not specified, it is interpreted
+  as tip of BRANCH.
+
+  When COMMIT equals to a special value "tree", a new commit is made,
+  using 'git add --all', atop current HEAD, which is then used as
+  a value for the parameter.
+
+   Modes of   Elementary actions:
+  operation:
+              cherry weld amend REBASE_BASE   command line
+
+    weld         +     +    +      TO+1                                          <branch> <to> <from>
+    weldit       -     -    +      TO+1    --no-cherry --no-weld --edit          <branch> <to>
+    weldname[1]  -     -    +      TO+1    --reauthor <nickname>                 <branch> <to>
+    weldui       -     -    +      TO+X    --no-cherry --no-weld --manual-amend  <branch> <to>
+    weldmove     +     -    -      TO+1    --no-weld --no-amend                  <branch> <to> <from>
+    weldrop      -     -    -      TO^1    --drop-commit                         <branch> <to>
+
+  Notes:
+
+    1. 'weldname' depends on existence of an 'author-id' script of the following type:
+           author-id :: nickname -> full-id
+       so that, for example:
+           [foo@bar ~]$ author-id linus
+           Linus Torvalds <torvalds@linux-foundation.org>
+
+  Options:
+
+    --edit[-message]   Allow editing of the amended commit message
+    --no-cherry[pick]  Do not cherry-pick FROM-COMMIT
+    --manual-amend     Run git-gui for amending.  Conflicts with --no-amend
+    --no-amend         Do not amend TO-COMMIT.  Conflicts with --edit-message
+    --no-weld          Do not weld FROM-COMMIT onto TO-COMMIT
+    --no-mutate        History rewrite mode only, do not change any commits
+                         Implies --no-weld and --no-amend
+    --reauthor[-commit] NICKNAME
+                       Change author of TO-COMMIT to NICKNAME.
+    --drop[-commit]    Drop TO-COMMIT.  Implies --no-mutate
+    --no-restore       When either a cherry-pick, or a rebase fails, do not
+                         disturb the state of failure with recovery operations
+    --debug            Print internal variables
+
+EOF
+}
+
+do_exit() {
+    local exit_status=$1
+
+    if test ${exit_status} = 0
+    then
+        echo "; weld: success"
+    else
+        echo "; weld: FAILED"
+    fi
+
+    exit ${exit_status}
+}
+
+GIT_AMEND_NO_EDIT_MESSAGE="--no-edit"
+GIT_AMEND_AUTHOR=""
+
+while test -z "${opt_done}"
+do
+    case "$1"
+        in
+        --no-restore )
+            NO_RESTORE=t
+            shift
+            ;;
+        --edit | --edit-message )
+            GIT_AMEND_NO_EDIT_MESSAGE=""
+            shift
+            ;;
+        --no-cherry | --no-cherrypick )
+            NO_CHERRYPICK=t
+            shift
+            ;;
+        --no-weld )
+            NO_WELD=t
+            shift
+            ;;
+        --no-amend )
+            NO_AMEND=t
+            shift
+            ;;
+        --manual-amend )
+            MANUAL_AMEND=t
+            shift
+            ;;
+        --no-mutate )
+            NO_MUTATE=t
+            NO_WELD=t
+            NO_AMEND=t
+            shift
+            ;;
+        --reauthor | --reauthor-commit )
+            REAUTHOR_COMMIT=t
+            NO_CHERRYPICK=t
+            NO_WELD=t
+            full_id="$(author-id $2)"
+            if test -z "${full_id}"
+            then
+	        echo "ERROR: unknown author id: $2"
+	        exit 1
+            else
+                echo "; resolved author id <$2> to ${full_id}"
+            fi
+            shift 2
+            GIT_AMEND_AUTHOR="--author \"${full_id}\""
+            ;;
+        --drop | --drop-commit )
+            DROP_COMMIT=t
+            NO_CHERRYPICK=t
+            NO_MUTATE=t
+            NO_WELD=t
+            NO_AMEND=t
+            shift
+            ;;
+        --debug )
+            DEBUG=t
+            shift
+            ;;
+        "--"* )
+            echo "ERROR: unknown option: $1"
+            exit 1
+            ;;
+        * )
+            break
+            ;;
+    esac
+done
+
+ORIG_HEAD="$(git symbolic-ref HEAD | sed s%refs/heads/%%)"
+
+case "$1" in
+    HEAD | "." )
+        BRANCH="${ORIG_HEAD}";;
+    * )
+        BRANCH="$1";;
+esac
+
+TO="$2"
+
+test -z "${TO}" -o -z "${BRANCH}"  && {
+    usage
+    exit 1
+}
+
+if test "$3" = "tree"
+then
+    git add --all
+    git commit -m "working tree at ${ORIG_HEAD}"
+    FROM="$(git show-ref ${ORIG_HEAD} | cut -d' ' -f1)"
+    echo "; weld: saved working tree as commit ${FROM}"
+    git reset --hard HEAD^1
+    REAPPLY_FROM_ON_ERROR=t
+else
+    FROM="${3:-${BRANCH}}"
+    if test -z "$3${NO_WELD}"
+    then
+        echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
+    fi
+fi
+
+if test ! -z "${DROP_COMMIT}"
+then
+    REBASE_BASE=${TO}^1
+else
+    REBASE_BASE=${TO}
+fi
+
+REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
+BACKUP_BRANCH="backup-weld-${RANDOM}"
+
+###
+### All state variables go above.
+###
+if test ! -z "${DEBUG}"
+then
+    echo "; weld: internal state:"
+    for var in BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_CHERRYPICK NO_MUTATE NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR
+    do
+        eval "echo \"    $var: \${$var}\""
+    done
+fi
+
+###
+### Phase 0: Sanity check -- see if working tree is clean
+###
+if git status --porcelain 2>&1 | grep "^??" > /dev/null
+then
+    echo "FATAL: unstaged changes in working tree -- safe operation impossible."
+    exit 1
+fi
+
+###
+### Phase 1: Mutate -- cherry-pick, amend
+###
+git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
+if test -z "${NO_MUTATE}"
+then
+    git checkout ${REBASE_BASE_BRANCH}
+
+    ## Sub-phase 1: Cherrypick -- updates REBASE_BASE_BRANCH
+    if test -z "${NO_CHERRYPICK}"
+    then
+        echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
+        echo "; weld: git cherry-pick ${FROM}"
+        if !          git cherry-pick ${FROM}
+        then
+            echo "ERROR: failed to cherry-pick ${FROM}"
+            if test -z "${NO_RESTORE}"
+            then
+                git cherry-pick --abort
+                git checkout ${ORIG_HEAD}
+                git branch -D ${REBASE_BASE_BRANCH}
+                if test ! -z "${REAPPLY_FROM_ON_ERROR}"
+                then
+                    git cherry-pick --no-commit ${FROM}
+                fi
+            fi
+            do_exit 1
+        fi
+    fi
+    ## Sub-phase 2: Reset+Add -- updates index
+    if test -z "${NO_WELD}"
+    then
+        echo "; weld: git reset --mixed ${TO}"
+        git reset --mixed ${TO}
+        git add --all
+    fi
+    ## Sub-phase 3: Amend+Commit -- updates REBASE_BASE_BRANCH
+    if test -z "${NO_AMEND}"
+    then
+        if test ! -z "${MANUAL_AMEND}"
+        then
+            git gui
+        else
+            eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
+        fi
+    fi
+fi
+
+###
+### Phase 2: Rebase
+###
+## Save pristine ${BRANCH}
+git branch ${BACKUP_BRANCH} ${BRANCH}
+
+STATUS=0
+echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH}"
+if            git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH}
+then
+    ## Safety check:
+    git diff --exit-code ${BACKUP_BRANCH} ${BRANCH} || {
+        while true
+        do
+            echo "WARNING: rebase produced differences.  What to do:"
+            echo -e "\n   [r]eview/[a]ccept or [any-key] to abort:"
+            echo -ne "\n  Your choice: "
+            read choice
+            case "${choice}" in
+                r )
+                    git diff --exit-code ${BACKUP_BRANCH} ${BRANCH} | less;;
+                a )
+                    break;;
+                * )
+                    STATUS=1
+                    break;;
+            esac
+        done
+        if test "${STATUS}" = 1
+        then
+            ## Abort the rebase:
+            git reset --hard
+            git checkout ${BRANCH}
+            git reset --hard ${BACKUP_BRANCH}
+            git checkout ${ORIG_HEAD}
+        fi
+    }
+elif test ! -z "${NO_RESTORE}"
+then
+    echo "WARNING: rebase failed.  --no-restore specified -- proceed manually."
+    STATUS=1
+else
+    echo "ERROR: rebase failed.  Undoing changes.."
+    git rebase --abort
+    git checkout ${ORIG_HEAD}
+    STATUS=1
+fi
+
+###
+### Phase 3: Cleanup
+###
+git branch -D ${BACKUP_BRANCH}
+git branch -D ${REBASE_BASE_BRANCH}
+
+do_exit ${STATUS}
