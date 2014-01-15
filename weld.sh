@@ -45,7 +45,8 @@ usage() {
     --drop[-commit]    Drop TO-COMMIT.  Implies --no-mutate
     --no-restore       When either a cherry-pick, or a rebase fails, do not
                          disturb the state of failure with recovery operations
-    --debug            Print internal variables
+    --debug-vars       Print internal variables
+    --debug-keep       Keep the temporary branches
 
 EOF
 }
@@ -134,8 +135,12 @@ do
             NO_AMEND=t
             shift
             ;;
-        --debug )
-            DEBUG=t
+        --debug-vars )
+            DEBUG_VARS=t
+            shift
+            ;;
+        --debug-keep )
+            DEBUG_KEEP=t
             shift
             ;;
         "--"* )
@@ -184,7 +189,7 @@ BACKUP_BRANCH="backup-weld-${RANDOM}"
 ###
 ### All state variables go above.
 ###
-if test ! -z "${DEBUG}"
+if test ! -z "${DEBUG_VARS}"
 then
     echo "; weld: internal state:"
     for var in BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_CHERRYPICK NO_MUTATE NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR
@@ -222,7 +227,10 @@ then
             then
                 git cherry-pick --abort
                 git checkout ${ORIG_HEAD}
-                git branch -D ${REBASE_BASE_BRANCH}
+                if test -z "${DEBUG_KEEP}"
+                then
+                    git branch -D ${REBASE_BASE_BRANCH}
+                fi
                 if test ! -z "${REAPPLY_FROM_ON_ERROR}"
                 then
                     git cherry-pick --no-commit ${FROM}
@@ -301,7 +309,10 @@ fi
 ###
 ### Phase 3: Cleanup
 ###
-git branch -D ${BACKUP_BRANCH}
-git branch -D ${REBASE_BASE_BRANCH}
+if test -z "${DEBUG_KEEP}"
+then
+    git branch -D ${BACKUP_BRANCH}
+    git branch -D ${REBASE_BASE_BRANCH}
+fi
 
 do_exit ${STATUS}
