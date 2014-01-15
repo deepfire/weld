@@ -164,7 +164,7 @@ if test "$2" = "tree"
 then
     git add --all
     git commit -m "working tree at ${ORIG_HEAD}"
-    FROM="$(git show-ref ${ORIG_HEAD} | cut -d' ' -f1)"
+    FROM="$(git show-ref --verify refs/heads/${ORIG_HEAD} | cut -d' ' -f1)"
     echo "; weld: saved working tree as commit ${FROM}"
     git reset --hard HEAD^1
     REAPPLY_FROM_ON_ERROR=t
