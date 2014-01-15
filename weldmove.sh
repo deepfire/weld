@@ -3,12 +3,10 @@
 usage() {
     cat <<EOF
   Usage:
-    $0 --OPTIONS* ON WHAT [BRANCH]
+    $0 --OPTIONS* ON WHAT
 
-  Move WHAT commit down, directly on top of ON, within BRANCH,
+  Move WHAT commit down, directly on top of ON, within HEAD,
   then rebase.
-
-  When BRANCH is not specified, current HEAD is assumed.
 
   OPTIONS are handled by being passed to weld.
 
@@ -32,7 +30,5 @@ done
 ON="$1"
 WHAT="$2"
 
-BRANCH="${3:-$(git symbolic-ref HEAD | sed s%refs/heads/%%)}"
-
-weld --no-cherry --no-mutate ${WELD_EXTRA_OPTIONS} "${BRANCH}" "${ON}" "${WHAT}"
+weld --no-weld --no-amend ${WELD_EXTRA_OPTIONS} "${ON}" "${WHAT}"
 

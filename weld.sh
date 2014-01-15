@@ -7,42 +7,32 @@ set -e
 usage() {
     cat <<EOF
   Usage:
-    $0 OPTIONS* BRANCH TO-COMMIT [FROM-COMMIT]
+    $0 OPTIONS* TO-COMMIT [FROM-COMMIT]
 
-  "Welds" FROM-COMMIT into TO-COMMIT,
-  then rebases BRANCH atop the new commit.
-
-  When BRANCH equals to a special value "HEAD" (or "."), it is interpreted
-  as specifying the currently checked out branch.
+  "Welds" FROM-COMMIT into TO-COMMIT, then rebases the current branch
+  (unless another is specified) atop the new commit.
 
   When COMMIT is not specified, it is interpreted
-  as tip of BRANCH.
+  as the tip of HEAD.
 
   When COMMIT equals to a special value "tree", a new commit is made,
-  using 'git add --all', atop current HEAD, which is then used as
-  a value for the parameter.
+  using 'git add --all', atop HEAD, which is then used as a value
+  for the parameter.
 
    Modes of   Elementary actions:
   operation:
               cherry weld amend REBASE_BASE   command line
 
-    weld         +     +    +      TO+1                                          <branch> <to> <from>
-    weldit       -     -    +      TO+1    --no-cherry --no-weld --edit          <branch> <to>
-    weldname[1]  -     -    +      TO+1    --reauthor <nickname>                 <branch> <to>
-    weldui       -     -    +      TO+X    --no-cherry --no-weld --manual-amend  <branch> <to>
-    weldmove     +     -    -      TO+1    --no-weld --no-amend                  <branch> <to> <from>
-    weldrop      -     -    -      TO^1    --drop-commit                         <branch> <to>
-
-  Notes:
-
-    1. 'weldname' depends on existence of an 'author-id' script of the following type:
-           author-id :: nickname -> full-id
-       so that, for example:
-           [foo@bar ~]$ author-id linus
-           Linus Torvalds <torvalds@linux-foundation.org>
+    weld         +     +    +      TO+1                                          <to> <from>
+    weldit       -     -    +      TO+1    --no-cherry --no-weld --edit          <to>
+    weldname     -     -    +      TO+1    --reauthor <nickname>                 <to>
+    weldui       -     -    +      TO+X    --no-cherry --no-weld --manual-amend  <to>
+    weldmove     +     -    -      TO+1    --no-weld --no-amend                  <to> <from>
+    weldrop      -     -    -      TO^1    --drop-commit                         <to>
 
   Options:
 
+    --branch BRANCH    Use a branch different from HEAD
     --edit[-message]   Allow editing of the amended commit message
     --no-cherry[pick]  Do not cherry-pick FROM-COMMIT
     --manual-amend     Run git-gui for amending.  Conflicts with --no-amend
@@ -76,10 +66,21 @@ do_exit() {
 GIT_AMEND_NO_EDIT_MESSAGE="--no-edit"
 GIT_AMEND_AUTHOR=""
 
+ORIG_HEAD="$(git symbolic-ref HEAD | sed s%refs/heads/%%)"
+BRANCH="${ORIG_HEAD}"
+
 while test -z "${opt_done}"
 do
     case "$1"
         in
+        --branch )
+            BRANCH="$2"
+            git show-ref --quiet --verify refs/heads/${BRANCH} || {
+	        echo "ERROR: not a local branch: $2"
+	        exit 1
+            }
+            shift 2
+            ;;
         --no-restore )
             NO_RESTORE=t
             shift
@@ -147,23 +148,14 @@ do
     esac
 done
 
-ORIG_HEAD="$(git symbolic-ref HEAD | sed s%refs/heads/%%)"
+TO="$1"
 
-case "$1" in
-    HEAD | "." )
-        BRANCH="${ORIG_HEAD}";;
-    * )
-        BRANCH="$1";;
-esac
-
-TO="$2"
-
-test -z "${TO}" -o -z "${BRANCH}"  && {
+test -z "${TO}" && {
     usage
     exit 1
 }
 
-if test "$3" = "tree"
+if test "$2" = "tree"
 then
     git add --all
     git commit -m "working tree at ${ORIG_HEAD}"
@@ -172,8 +164,8 @@ then
     git reset --hard HEAD^1
     REAPPLY_FROM_ON_ERROR=t
 else
-    FROM="${3:-${BRANCH}}"
-    if test -z "$3${NO_WELD}"
+    FROM="${2:-${BRANCH}}"
+    if test -z "$2${NO_WELD}"
     then
         echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
     fi

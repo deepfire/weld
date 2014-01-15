@@ -3,11 +3,9 @@
 usage() {
     cat <<EOF
   Usage:
-    $0 --OPTIONS* COMMIT [BRANCH]
+    $0 --OPTIONS* COMMIT]
 
-  Drop COMMIT from BRANCH, via rebase.
-
-  When BRANCH is not specified, current HEAD is assumed.
+  Drop COMMIT from HEAD, via rebase.
 
   OPTIONS are handled by being passed to weld.
 
@@ -30,7 +28,5 @@ done
 
 COMMIT="$1"
 
-BRANCH="${2:-$(git symbolic-ref HEAD | sed s%refs/heads/%%)}"
-
-weld --drop-commit ${WELD_EXTRA_OPTIONS} "${BRANCH}" "${COMMIT}"
+weld --drop-commit ${WELD_EXTRA_OPTIONS} "${COMMIT}"
 

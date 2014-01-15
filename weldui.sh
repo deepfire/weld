@@ -3,11 +3,9 @@
 usage() {
     cat <<EOF
   Usage:
-    $0 --OPTIONS* COMMIT [BRANCH]
+    $0 --OPTIONS* COMMIT
 
-  Interactively amend COMMIT, rebasing BRANCH atop changes.
-
-  When BRANCH is not specified, current HEAD is assumed.
+  Interactively amend COMMIT, rebasing HEAD atop changes.
 
   OPTIONS are handled by being passed to weld.
 
@@ -30,7 +28,5 @@ done
 
 COMMIT="$1"
 
-BRANCH="${2:-$(git symbolic-ref HEAD | sed s%refs/heads/%%)}"
-
-weld --no-cherry --no-weld --manual-amend ${WELD_EXTRA_OPTIONS} "${BRANCH}" "${COMMIT}"
+weld --no-cherry --no-weld --manual-amend ${WELD_EXTRA_OPTIONS} "${COMMIT}"
 

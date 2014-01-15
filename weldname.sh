@@ -3,11 +3,9 @@
 usage() {
     cat <<EOF
   Usage:
-    $0 --OPTIONS* NICKNAME COMMIT [BRANCH]
+    $0 --OPTIONS* NICKNAME COMMIT
 
-  Re-author COMMIT to NICKNAME, rebasing BRANCH atop changes.
-
-  When BRANCH is not specified, current HEAD is assumed.
+  Re-author COMMIT to NICKNAME, rebasing HEAD atop changes.
 
   OPTIONS are handled by being passed to weld.
 
@@ -31,7 +29,5 @@ done
 NICKNAME="$1"
 COMMIT="$2"
 
-BRANCH="${3:-$(git symbolic-ref HEAD | sed s%refs/heads/%%)}"
-
-weld --reauthor-commit ${NICKNAME} "${BRANCH}" "${COMMIT}"
+weld --reauthor-commit ${NICKNAME} "${COMMIT}"
 
