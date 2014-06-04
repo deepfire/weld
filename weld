@@ -191,9 +191,6 @@ else
     done
 fi
 
-###
-### All state variables go above.
-###
 if test ! -z "${DEBUG_VARS}"
 then
     echo "; weld: internal state:"
@@ -206,7 +203,7 @@ fi
 ###
 ### Phase 0: Sanity check -- see if working tree is clean
 ###
-if git status --porcelain 2>&1 | grep "^??" > /dev/null
+if test -z "${CONTINUE}" && git status --porcelain 2>&1 | grep "^??" > /dev/null
 then
     echo "FATAL: unstaged changes in working tree -- safe operation impossible."
     exit 1
