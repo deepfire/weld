@@ -141,54 +141,60 @@ do
     shift
 done
 
-TO="$1"
-
-test -z "${TO}" && {
-    usage
-    exit 1
-}
-
-if test "$2" = "tree"
-then
-    git add --all
-    git commit -m "working tree at ${ORIG_HEAD}"
-    FROM="$(git show-ref --verify refs/heads/${ORIG_HEAD} | cut -d' ' -f1)"
-    echo "; weld: saved working tree as commit ${FROM}"
-    git reset --hard HEAD^1
-    REAPPLY_FROM_ON_ERROR=t
-else
-    FROM="${2:-${BRANCH}}"
-    if test -z "$2${NO_WELD}"
-    then
-        echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
-    fi
-fi
-
-if test ! -z "${DROP_COMMIT}"
-then
-    REBASE_BASE=${TO}^1
-else
-    REBASE_BASE=${TO}
-fi
-
-REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
-BACKUP_BRANCH="backup-weld-${RANDOM}"
-
 ###
 ### Context
 ###
 CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
 
-if test x${CONTINUE} != x
+if test -z "${CONTINUE}"
 then
-    echo "; restoring context from ${CTX_STORE}"
-    source ${CTX_STORE}
-else
+    TO="$1"
+
+    test -z "${TO}" && {
+	usage
+	exit 1
+    }
+
+    if test "$2" = "tree"
+    then
+	git add --all
+	git commit -m "working tree at ${ORIG_HEAD}"
+	FROM="$(git show-ref --verify refs/heads/${ORIG_HEAD} | cut -d' ' -f1)"
+	echo "; weld: saved working tree as commit ${FROM}"
+	git reset --hard HEAD^1
+	REAPPLY_FROM_ON_ERROR=t
+    else
+	FROM="${2:-${BRANCH}}"
+	if test -z "$2${NO_WELD}"
+	then
+            echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
+	fi
+    fi
+
+    if git status --porcelain 2>&1 | grep "^??" > /dev/null
+    then
+	echo "FATAL: unstaged changes in working tree -- safe operation impossible."
+	exit 1
+    fi
+
+    if test ! -z "${DROP_COMMIT}"
+    then
+	REBASE_BASE=${TO}^1
+    else
+	REBASE_BASE=${TO}
+    fi
+
+    REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
+    BACKUP_BRANCH="backup-weld-${RANDOM}"
+
     rm -f ${CTX_STORE}
     for var in ${CTX_VARS}
     do
         eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
     done
+else
+    echo "; restoring context from ${CTX_STORE}"
+    source ${CTX_STORE}
 fi
 
 if test ! -z "${DEBUG_VARS}"
@@ -201,16 +207,11 @@ then
 fi
 
 ###
-### Phase 0: Sanity check -- see if working tree is clean
+### Actual execution
 ###
-if test -z "${CONTINUE}" && git status --porcelain 2>&1 | grep "^??" > /dev/null
-then
-    echo "FATAL: unstaged changes in working tree -- safe operation impossible."
-    exit 1
-fi
 
 ###
-### Phase 1: Mutate -- cherry-pick, amend
+### Phase 1: M-C-W-A: move, cherry-pick, weld, amend
 ###
 git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
 if test -z "${NO_MOVE}"
