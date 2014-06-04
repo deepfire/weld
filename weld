@@ -40,12 +40,13 @@ usage() {
 
     --branch BRANCH    Use a branch different from HEAD
     --edit[-message]   Allow editing of the amended commit message
-    --no-cherry[pick]  Do not cherry-pick FROM-COMMIT
     --manual-amend     Run git-gui for amending.  Conflicts with --no-amend
-    --no-amend         Do not amend TO-COMMIT.  Conflicts with --edit-message
+    --no-move          Do not move to TO
+    --no-cherry[pick]  Do not cherry-pick FROM-COMMIT
     --no-weld          Do not weld FROM-COMMIT onto TO-COMMIT
+    --no-amend         Do not amend TO-COMMIT.  Conflicts with --edit-message
     --no-mutate        History rewrite mode only, do not change any commits
-                         Implies --no-weld and --no-amend
+                         Shortcut for --no-{move,cherry,weld,amend}
     --reauthor[-commit] NICKNAME
                        Change author of TO-COMMIT to NICKNAME.
     --drop[-commit]    Drop TO-COMMIT.  Implies --no-mutate
@@ -85,7 +86,8 @@ do
         in
         --no-restore )                        NO_RESTORE=t;;
         --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
-        --no-cherry | --no-cherrypick )       NO_CHERRYPICK=t;;
+        --no-move )                           NO_MOVE=t;;
+        --no-cherry | --no-cherrypick )       NO_CHERRY=t;;
         --no-weld )                           NO_WELD=t;;
         --no-amend )                          NO_AMEND=t;;
         --manual-amend )                      MANUAL_AMEND=t;;
@@ -101,13 +103,14 @@ do
             shift
             ;;
         --no-mutate )
-            NO_MUTATE=t
+            NO_MOVE=t
+            NO_CHERRY=t
             NO_WELD=t
             NO_AMEND=t
             ;;
         --reauthor | --reauthor-commit )
             REAUTHOR_COMMIT=t
-            NO_CHERRYPICK=t
+            NO_CHERRY=t
             NO_WELD=t
             full_id="$(author-id $2)"
             if test -z "${full_id}"
@@ -122,8 +125,8 @@ do
             ;;
         --drop | --drop-commit )
             DROP_COMMIT=t
-            NO_CHERRYPICK=t
-            NO_MUTATE=t
+            NO_MOVE=t
+            NO_CHERRY=t
             NO_WELD=t
             NO_AMEND=t
             ;;
@@ -174,7 +177,7 @@ BACKUP_BRANCH="backup-weld-${RANDOM}"
 ###
 ### Context
 ###
-CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_CHERRYPICK NO_MUTATE NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
+CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
 
 if test x${CONTINUE} != x
 then
@@ -213,50 +216,49 @@ fi
 ### Phase 1: Mutate -- cherry-pick, amend
 ###
 git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
-if test -z "${NO_MUTATE}"
+if test -z "${NO_MOVE}"
 then
     git checkout ${REBASE_BASE_BRANCH}
-
-    ## Sub-phase 1: Cherrypick -- updates REBASE_BASE_BRANCH
-    if test -z "${NO_CHERRYPICK}"
+fi
+## Sub-phase 1: Cherrypick -- updates REBASE_BASE_BRANCH
+if test -z "${NO_CHERRY}"
+then
+    echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
+    echo "; weld: git cherry-pick ${FROM}"
+    if !          git cherry-pick ${FROM}
     then
-        echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
-        echo "; weld: git cherry-pick ${FROM}"
-        if !          git cherry-pick ${FROM}
+        echo "ERROR: failed to cherry-pick ${FROM}"
+        if test -z "${NO_RESTORE}"
         then
-            echo "ERROR: failed to cherry-pick ${FROM}"
-            if test -z "${NO_RESTORE}"
+            git cherry-pick --abort
+            git checkout ${ORIG_HEAD}
+            if test -z "${DEBUG_KEEP}"
             then
-                git cherry-pick --abort
-                git checkout ${ORIG_HEAD}
-                if test -z "${DEBUG_KEEP}"
-                then
-                    git branch -D ${REBASE_BASE_BRANCH}
-                fi
-                if test ! -z "${REAPPLY_FROM_ON_ERROR}"
-                then
-                    git cherry-pick --no-commit ${FROM}
-                fi
+                git branch -D ${REBASE_BASE_BRANCH}
             fi
-            do_exit 1
+            if test ! -z "${REAPPLY_FROM_ON_ERROR}"
+            then
+                git cherry-pick --no-commit ${FROM}
+            fi
         fi
+        do_exit 1
     fi
-    ## Sub-phase 2: Reset+Add -- updates index
-    if test -z "${NO_WELD}"
+fi
+## Sub-phase 2: Reset+Add -- updates index
+if test -z "${NO_WELD}"
+then
+    echo "; weld: git reset --mixed ${TO}"
+    git reset --mixed ${TO}
+    git add --all
+fi
+## Sub-phase 3: Amend+Commit -- updates REBASE_BASE_BRANCH
+if test -z "${NO_AMEND}"
+then
+    if test ! -z "${MANUAL_AMEND}"
     then
-        echo "; weld: git reset --mixed ${TO}"
-        git reset --mixed ${TO}
-        git add --all
-    fi
-    ## Sub-phase 3: Amend+Commit -- updates REBASE_BASE_BRANCH
-    if test -z "${NO_AMEND}"
-    then
-        if test ! -z "${MANUAL_AMEND}"
-        then
-            git gui
-        else
-            eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
-        fi
+        git gui
+    else
+        eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
     fi
 fi
 
