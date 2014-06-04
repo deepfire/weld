@@ -83,43 +83,27 @@ while test -z "${opt_done}"
 do
     case "$1"
         in
+        --no-restore )                        NO_RESTORE=t;;
+        --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
+        --no-cherry | --no-cherrypick )       NO_CHERRYPICK=t;;
+        --no-weld )                           NO_WELD=t;;
+        --no-amend )                          NO_AMEND=t;;
+        --manual-amend )                      MANUAL_AMEND=t;;
+        --debug-vars )                        DEBUG_VARS=t;;
+        --debug-keep )                        DEBUG_KEEP=t;;
+	--continue )                          CONTINUE=t;;
         --branch )
             BRANCH="$2"
             git show-ref --quiet --verify refs/heads/${BRANCH} || {
 	        echo "ERROR: not a local branch: $2"
 	        exit 1
             }
-            shift 2
-            ;;
-        --no-restore )
-            NO_RESTORE=t
-            shift
-            ;;
-        --edit | --edit-message )
-            GIT_AMEND_NO_EDIT_MESSAGE=""
-            shift
-            ;;
-        --no-cherry | --no-cherrypick )
-            NO_CHERRYPICK=t
-            shift
-            ;;
-        --no-weld )
-            NO_WELD=t
-            shift
-            ;;
-        --no-amend )
-            NO_AMEND=t
-            shift
-            ;;
-        --manual-amend )
-            MANUAL_AMEND=t
             shift
             ;;
         --no-mutate )
             NO_MUTATE=t
             NO_WELD=t
             NO_AMEND=t
-            shift
             ;;
         --reauthor | --reauthor-commit )
             REAUTHOR_COMMIT=t
@@ -133,7 +117,7 @@ do
             else
                 echo "; resolved author id <$2> to ${full_id}"
             fi
-            shift 2
+            shift
             GIT_AMEND_AUTHOR="--author \"${full_id}\""
             ;;
         --drop | --drop-commit )
@@ -142,20 +126,7 @@ do
             NO_MUTATE=t
             NO_WELD=t
             NO_AMEND=t
-            shift
             ;;
-        --debug-vars )
-            DEBUG_VARS=t
-            shift
-            ;;
-        --debug-keep )
-            DEBUG_KEEP=t
-            shift
-            ;;
-	--continue )
-	    CONTINUE=t
-	    shift
-	    ;;
         "--"* )
             echo "ERROR: unknown option: $1"
             exit 1
@@ -164,6 +135,7 @@ do
             break
             ;;
     esac
+    shift
 done
 
 TO="$1"
