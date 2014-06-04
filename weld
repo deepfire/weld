@@ -2,7 +2,13 @@
 # (c) 2013 Samium Gromoff <_deepfire@feelingofgreen.ru>
 # Licensed under the terms of the GNU GPL License version 3 and higher
 
-set -e
+# set -e
+
+CTX_STORE=.git/weld-context
+CTX_CMDLINE="$@"
+if test -f ${CTX_STORE}; then
+    CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
+fi
 
 usage() {
     cat <<EOF
@@ -47,6 +53,7 @@ usage() {
                          disturb the state of failure with recovery operations
     --debug-vars       Print internal variables
     --debug-keep       Keep the temporary branches
+    --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
 
 EOF
 }
@@ -63,6 +70,8 @@ do_exit() {
 
     exit ${exit_status}
 }
+
+CONTINUE=
 
 GIT_AMEND_NO_EDIT_MESSAGE="--no-edit"
 GIT_AMEND_AUTHOR=""
@@ -143,6 +152,10 @@ do
             DEBUG_KEEP=t
             shift
             ;;
+	--continue )
+	    CONTINUE=t
+	    shift
+	    ;;
         "--"* )
             echo "ERROR: unknown option: $1"
             exit 1
@@ -187,12 +200,29 @@ REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
 BACKUP_BRANCH="backup-weld-${RANDOM}"
 
 ###
+### Context
+###
+CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_CHERRYPICK NO_MUTATE NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
+
+if test x${CONTINUE} != x
+then
+    echo "; restoring context from ${CTX_STORE}"
+    source ${CTX_STORE}
+else
+    rm -f ${CTX_STORE}
+    for var in ${CTX_VARS}
+    do
+        eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
+    done
+fi
+
+###
 ### All state variables go above.
 ###
 if test ! -z "${DEBUG_VARS}"
 then
     echo "; weld: internal state:"
-    for var in BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_CHERRYPICK NO_MUTATE NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR
+    for var in ${CTX_VARS}
     do
         eval "echo \"    $var: \${$var}\""
     done
