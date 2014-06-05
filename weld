@@ -209,16 +209,21 @@ fi
 ###
 ### Actual execution
 ###
+branch_cleanup() {
+    test ! -z "${DEBUG_KEEP}" || \
+	git branch -D ${BACKUP_BRANCH} ${REBASE_BASE_BRANCH} || true
+}
 
-###
-### Phase 1: M-C-W-A: move, cherry-pick, weld, amend
+### Move
 ###
 git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
 if test -z "${NO_MOVE}"
 then
     git checkout ${REBASE_BASE_BRANCH}
 fi
-## Sub-phase 1: Cherrypick -- updates REBASE_BASE_BRANCH
+
+### Cherrypick -- updates REBASE_BASE_BRANCH
+###
 if test -z "${NO_CHERRY}"
 then
     echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
@@ -242,14 +247,18 @@ then
         do_exit 1
     fi
 fi
-## Sub-phase 2: Reset+Add -- updates index
+
+### Reset+Add -- updates index
+###
 if test -z "${NO_WELD}"
 then
     echo "; weld: git reset --mixed ${TO}"
     git reset --mixed ${TO}
     git add --all
 fi
-## Sub-phase 3: Amend+Commit -- updates REBASE_BASE_BRANCH
+
+### Amend+Commit -- updates REBASE_BASE_BRANCH
+###
 if test -z "${NO_AMEND}"
 then
     if test ! -z "${MANUAL_AMEND}"
@@ -260,10 +269,9 @@ then
     fi
 fi
 
+### Rebase
 ###
-### Phase 2: Rebase
-###
-## Save pristine ${BRANCH}
+# save pristine ${BRANCH}
 git branch ${BACKUP_BRANCH} ${BRANCH}
 
 STATUS=0
@@ -297,24 +305,36 @@ then
             git checkout ${ORIG_HEAD}
         fi
     }
+    branch_cleanup
 elif test ! -z "${NO_RESTORE}"
 then
     echo "WARNING: rebase failed.  --no-restore specified -- proceed manually."
     STATUS=1
 else
-    echo "ERROR: rebase failed.  Undoing changes.."
-    git rebase --abort
-    git checkout ${ORIG_HEAD}
-    STATUS=1
-fi
+    cat <<EOF
+WARNING:  Rebase phase failed.
 
-###
-### Phase 3: Cleanup
-###
-if test -z "${DEBUG_KEEP}"
-then
-    git branch -D ${BACKUP_BRANCH}
-    git branch -D ${REBASE_BASE_BRANCH}
+NOTE:     You have an option of fixing conflicts and continuing the operation,
+NOTE:     by using the following command:
+NOTE:
+NOTE:          weld --continue
+
+Do you want to FIX-manually-then-continue, or CANCEL-and-revert?
+
+EOF
+    echo -n "Your choice?  'f'IX / 'c'ANCEL=default  "
+    read ans
+    if test x$ans != xf
+    then
+	echo "; cancelling weld changes, as per user request"
+	git rebase --abort
+	git checkout ${ORIG_HEAD}
+	branch_cleanup
+    else
+	echo "; conflicts left in-place -- fix them and run"
+	echo ";    weld --continue"
+    fi
+    STATUS=1
 fi
 
 do_exit ${STATUS}
