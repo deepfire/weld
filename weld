@@ -72,12 +72,16 @@ do_exit() {
     exit ${exit_status}
 }
 
+head_ref_shortname() {
+    echo $1 | sed s%refs/heads/%%
+}
+
 CONTINUE=
 
 GIT_AMEND_NO_EDIT_MESSAGE="--no-edit"
 GIT_AMEND_AUTHOR=""
 
-ORIG_HEAD="$(git symbolic-ref HEAD | sed s%refs/heads/%%)"
+ORIG_HEAD="$(git symbolic-ref HEAD)"
 BRANCH="${ORIG_HEAD}"
 
 while test -z "${opt_done}"
@@ -95,8 +99,8 @@ do
         --debug-keep )                        DEBUG_KEEP=t;;
 	--continue )                          CONTINUE=t;;
         --branch )
-            BRANCH="$2"
-            git show-ref --quiet --verify refs/heads/${BRANCH} || {
+            BRANCH="refs/heads/$2"
+            git show-ref --quiet --verify ${BRANCH} || {
 	        echo "ERROR: not a local branch: $2"
 	        exit 1
             }
@@ -159,7 +163,7 @@ then
     then
 	git add --all
 	git commit -m "working tree at ${ORIG_HEAD}"
-	FROM="$(git show-ref --verify refs/heads/${ORIG_HEAD} | cut -d' ' -f1)"
+	FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
 	echo "; weld: saved working tree as commit ${FROM}"
 	git reset --hard HEAD^1
 	REAPPLY_FROM_ON_ERROR=t
@@ -234,7 +238,7 @@ then
         if test -z "${NO_RESTORE}"
         then
             git cherry-pick --abort
-            git checkout ${ORIG_HEAD}
+            git checkout $(head_ref_shortname ${ORIG_HEAD})
             if test -z "${DEBUG_KEEP}"
             then
                 git branch -D ${REBASE_BASE_BRANCH}
@@ -275,8 +279,9 @@ fi
 git branch ${BACKUP_BRANCH} ${BRANCH}
 
 STATUS=0
-echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH}"
-if            git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH}
+test x${TRACE} != x || \
+    echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(head_ref_shortname ${BRANCH})"
+if                git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(head_ref_shortname ${BRANCH})
 then
     ## Safety check:
     git diff --exit-code ${BACKUP_BRANCH} ${BRANCH} || {
@@ -300,9 +305,9 @@ then
         then
             ## Abort the rebase:
             git reset --hard
-            git checkout ${BRANCH}
+            git checkout $(head_ref_shortname ${BRANCH})
             git reset --hard ${BACKUP_BRANCH}
-            git checkout ${ORIG_HEAD}
+            git checkout $(head_ref_shortname ${ORIG_HEAD})
         fi
     }
     branch_cleanup
@@ -328,7 +333,7 @@ EOF
     then
 	echo "; cancelling weld changes, as per user request"
 	git rebase --abort
-	git checkout ${ORIG_HEAD}
+	git checkout $(head_ref_shortname ${ORIG_HEAD})
 	branch_cleanup
     else
 	echo "; conflicts left in-place -- fix them and run"
