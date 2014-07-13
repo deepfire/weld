@@ -54,6 +54,7 @@ usage() {
                          disturb the state of failure with recovery operations
     --debug-vars       Print internal variables
     --debug-keep       Keep the temporary branches
+    --trace            Trace command invocation
     --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
 
 EOF
@@ -97,6 +98,7 @@ do
         --manual-amend )                      MANUAL_AMEND=t;;
         --debug-vars )                        DEBUG_VARS=t;;
         --debug-keep )                        DEBUG_KEEP=t;;
+	--trace )                             TRACE=t;;
 	--continue )                          CONTINUE=t;;
         --branch )
             BRANCH="refs/heads/$2"
@@ -161,11 +163,13 @@ then
 
     if test "$2" = "tree"
     then
+	test x${TRACE} == x || set -x
 	git add --all
 	git commit -m "working tree at ${ORIG_HEAD}"
 	FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
 	echo "; weld: saved working tree as commit ${FROM}"
 	git reset --hard HEAD^1
+	set +x
 	REAPPLY_FROM_ON_ERROR=t
     else
 	FROM="${2:-${BRANCH}}"
@@ -209,6 +213,8 @@ then
         eval "echo \"    $var: \${$var}\""
     done
 fi
+
+test x${TRACE} == x || set -x
 
 ###
 ### Actual execution
@@ -256,7 +262,8 @@ fi
 ###
 if test -z "${NO_WELD}"
 then
-    echo "; weld: git reset --mixed ${TO}"
+    test x${TRACE} != x || \
+	echo "; weld: git reset --mixed ${TO}"
     git reset --mixed ${TO}
     git add --all
 fi
@@ -342,4 +349,5 @@ EOF
     STATUS=1
 fi
 
+set +x
 do_exit ${STATUS}
