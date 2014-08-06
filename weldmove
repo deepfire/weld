@@ -28,7 +28,7 @@ do
 done
 
 ON="$1"
-WHAT="$2"
+WHAT="${2:-$(git-head-ref)}"
 
 weld --no-weld --no-amend ${WELD_EXTRA_OPTIONS} "${ON}" "${WHAT}"
 

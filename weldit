@@ -26,7 +26,7 @@ do
     esac
 done
 
-COMMIT="$1"
+COMMIT="${1:-$(git-head-ref)}"
 
 weld --no-cherry --no-weld --edit ${WELD_EXTRA_OPTIONS} "${COMMIT}"
 
