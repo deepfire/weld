@@ -11,6 +11,8 @@ if test -f ${CTX_STORE}; then
 fi
 
 usage() {
+    test -z "$1" || echo "ERROR: $1"
+
     cat <<EOF
   Usage:
     $0 OPTIONS* TO-COMMIT [FROM-COMMIT]
@@ -157,7 +159,7 @@ then
     TO="$1"
 
     test -z "${TO}" && {
-	usage
+	usage "TO argument is empty"
 	exit 1
     }
 
