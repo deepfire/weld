@@ -10,6 +10,24 @@ if test -f ${CTX_STORE}; then
     CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
 fi
 
+do_exit() {
+	local exit_status=$1
+	local operation="$2"
+
+
+	if test ${exit_status} = 0
+	then echo "; weld: successful '${operation}'"
+	else echo "; weld: FAILED '${operation}'" >&2
+	fi
+
+	exit ${exit_status}
+}
+
+error() {
+	echo "ERROR: $1" > &2
+	exit 1
+}
+
 usage() {
     test -z "$1" || echo "ERROR: $1"
 
@@ -53,9 +71,11 @@ usage() {
                        Change author of TO-COMMIT to NICKNAME.
     --drop[-commit]    Drop TO-COMMIT.  Implies --no-mutate
 
+    --non-continuable  Always abort on failure, do not suggest --continue.
     --continuable      When either a cherry-pick, or a rebase fails, do not
-                         disturb the state of failure with recovery operations
+                         disturb the state of failure with weld abort operations
     --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
+    --abort            Abort weld session
 
     --debug-vars       Print internal variables
     --debug-keep       Keep the temporary branches
@@ -64,21 +84,41 @@ usage() {
 EOF
 }
 
-do_exit() {
-    local exit_status=$1
+help_continuable() {
+	local title="$1"
+	cat <<EOF
+   ${title}:
 
-    if test ${exit_status} = 0
-    then
-        echo "; weld: success"
-    else
-        echo "; weld: FAILED"
-    fi
+          0. Abort not performed:
+              - conflict are in the tree
+              - temporary weld branches are out there
 
-    exit ${exit_status}
+          1. Lost hope?  Abort by 'weld --abort'
+
+          2. But --continuable mode allows you to:
+              - fix the conflicts manually
+              - 'git add' now deconflicted files
+              - resume weld:  'weld --continue'
+
+EOF
 }
 
-head_ref_shortname() {
+git_head_ref_shortname() {
     echo $1 | sed s%refs/heads/%%
+}
+
+git_move_branch() {
+	local branch="$1"
+	local to="$2"
+
+        git checkout ${branch}
+        git reset --hard ${to}
+}
+
+git_kill_branch() {
+	local branch="$1"
+
+	git branch -D ${b} || true
 }
 
 CONTINUE=
@@ -93,8 +133,18 @@ while test -z "${opt_done}"
 do
     case "$1"
         in
-        --continuable )                       CONTINUABLE=t;;
-	--continue )                          CONTINUE=t;;
+	--non-continuable )                   NON_CONTINUABLE=t;
+					      test -z "${CONTINUABLE}" ||
+						  error "--continuable provided with --non-continuable";;
+        --continuable )                       CONTINUABLE=t;
+					      test -z "${NON_CONTINUABLE}" ||
+						  error "--continuable provided with --non-continuable";;
+	--continue )                          CONTINUE=t;
+					      test -z "${ABORT}" ||
+						  error "--continue provided with --abort";;
+	--abort )                             ABORT=t;
+					      test -z "${CONTINUE}" ||
+						  error "--continue provided with --abort";;
         --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
         --no-move )                           NO_MOVE=t;;
         --no-cherry | --no-cherrypick )       NO_CHERRY=t;;
@@ -106,10 +156,8 @@ do
 	--trace )                             TRACE=t;;
         --branch )
             BRANCH="refs/heads/$2"
-            git show-ref --quiet --verify ${BRANCH} || {
-	        echo "ERROR: not a local branch: $2"
-	        exit 1
-            }
+            git show-ref --quiet --verify ${BRANCH} ||
+	        error "not a local branch: $2"
             shift
             ;;
         --no-mutate )
@@ -125,8 +173,7 @@ do
             full_id="$(author-id $2)"
             if test -z "${full_id}"
             then
-	        echo "ERROR: unknown author id: $2"
-	        exit 1
+	        error "unknown author id: $2"
             else
                 echo "; resolved author id <$2> to ${full_id}"
             fi
@@ -141,8 +188,7 @@ do
             NO_AMEND=t
             ;;
         "--"* )
-            echo "ERROR: unknown option: $1"
-            exit 1
+            error "unknown option: $1"
             ;;
         * )
             break
@@ -154,9 +200,9 @@ done
 ###
 ### Context
 ###
-CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
+CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE"
 
-if test -z "${CONTINUE}"
+if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
     TO="$1"
 
@@ -169,12 +215,13 @@ then
     then
 	test x${TRACE} == x || set -x
 	git add --all
+	DIFF_REAPPLY_ON_ERROR="saved-tree-${RANDOM}"
+	git branch "${DIFF_REAPPLY_ON_ERROR}"
 	git commit -m "working tree at ${ORIG_HEAD}"
 	FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
 	echo "; weld: saved working tree as commit ${FROM}"
 	git reset --hard HEAD^1
 	set +x
-	REAPPLY_FROM_ON_ERROR=t
     else
 	FROM="${2:-${BRANCH}}"
 	if test -z "$2${NO_WELD}"
@@ -197,7 +244,7 @@ then
     fi
 
     REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
-    BACKUP_BRANCH="backup-weld-${RANDOM}"
+    BRANCH_BACKUP="backup-weld-${RANDOM}"
 
     rm -f ${CTX_STORE}
     for var in ${CTX_VARS}
@@ -223,9 +270,72 @@ test x${TRACE} == x || set -x
 ###
 ### Actual execution
 ###
-branch_cleanup() {
-    test ! -z "${DEBUG_KEEP}" || \
-	git branch -D ${BACKUP_BRANCH} ${REBASE_BASE_BRANCH} || true
+abort_restore_user_context() {
+	git_move_branch $(git_head_ref_shortname ${BRANCH}) ${BRANCH_BACKUP}
+        git checkout $(git_head_ref_shortname ${ORIG_HEAD})
+	test -z "${DIFF_REAPPLY_ON_ERROR}" || {
+		git cherry-pick --no-commit ${DIFF_REAPPLY_ON_ERROR}
+		git_kill_branch ${DIFF_REAPPLY_ON_ERROR}
+	}
+}
+
+abort_remove_weld_branches() {
+	local cleanup_branches="$*"
+	test ! -z "${DEBUG_KEEP}" ||
+		for b in ${cleanup_branches}
+		do
+			git_kill_branch ${b}
+		done
+}
+
+abort() {
+	local abort_command="$1"; shift
+	local cleanup_branches="$*"
+
+	echo "; Aborting weld operation"
+	${abort_command}
+	abort_restore_user_context
+	abort_remove_weld_branches ${cleanup_branches}
+}
+
+maybe_continuable() {
+	local failed_action="$1"
+	local abort_command="$2"
+	local cleanup_branches="$3"
+
+	cat <<EOF
+WARNING
+WARNING  ${failed_action} failed.
+WARNING
+
+EOF
+	if test ! -z "${NON_CONTINUABLE}"
+	then abort "${abort_command}" ${cleanup_branches}; return
+	fi
+
+	local fixp=
+	help_continuable "Abort operation or fix-manually-then-continue?"
+	if test ! -z ${CONTINUABLE}
+	then
+		fixp=f
+	else
+		echo "FIX-manually-then-continue, or ABORT?"
+		echo -n "Your choice?  'f'IX / 'a'BORT=default  "
+		read fixp
+	fi
+	if test x$fixp != xf # User declined to use fixup-then-continue
+	then abort "${abort_command}" ${cleanup_branches}; return
+	fi
+
+	if test -z ${CONTINUABLE}
+	then # Repeat the help message briefly:
+		echo "; conflicts left in-place -- fix them, 'git add' fixed, then run"
+		echo ";    weld --continue"
+		echo ";"
+		echo "; or, in despair:"
+		echo ";    weld --abort"
+		echo ";"
+	fi
 }
 
 ### Move
@@ -244,21 +354,9 @@ then
     echo "; weld: git cherry-pick ${FROM}"
     if !          git cherry-pick ${FROM}
     then
-        echo "ERROR: failed to cherry-pick ${FROM}"
-        if test -z "${CONTINUABLE}"
-        then
-            git cherry-pick --abort
-            git checkout $(head_ref_shortname ${ORIG_HEAD})
-            if test -z "${DEBUG_KEEP}"
-            then
-                git branch -D ${REBASE_BASE_BRANCH}
-            fi
-            if test ! -z "${REAPPLY_FROM_ON_ERROR}"
-            then
-                git cherry-pick --no-commit ${FROM}
-            fi
-        fi
-        do_exit 1
+	maybe_continuable "Failed to cherry-pick ${FROM}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH}"
+	set +x
+        do_exit 1 "cherry-pick ${FROM}"
     fi
 fi
 
@@ -286,16 +384,15 @@ fi
 
 ### Rebase
 ###
-# save pristine ${BRANCH}
-git branch ${BACKUP_BRANCH} ${BRANCH}
+git branch ${BRANCH_BACKUP} ${BRANCH}
 
 STATUS=0
 test x${TRACE} != x || \
-    echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(head_ref_shortname ${BRANCH})"
-if                git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(head_ref_shortname ${BRANCH})
+    echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})"
+if                git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})
 then
     ## Safety check:
-    git diff --exit-code ${BACKUP_BRANCH} ${BRANCH} || {
+    git diff --exit-code ${BRANCH_BACKUP} ${BRANCH} || {
         while true
         do
             echo "WARNING: rebase produced differences.  What to do:"
@@ -304,7 +401,7 @@ then
             read choice
             case "${choice}" in
                 r )
-                    git diff --exit-code ${BACKUP_BRANCH} ${BRANCH} | less;;
+                    git diff --exit-code ${BRANCH_BACKUP} ${BRANCH} | less;;
                 a )
                     break;;
                 * )
@@ -314,44 +411,16 @@ then
         done
         if test "${STATUS}" = 1
         then
-            ## Abort the rebase:
-            git reset --hard
-            git checkout $(head_ref_shortname ${BRANCH})
-            git reset --hard ${BACKUP_BRANCH}
-            git checkout $(head_ref_shortname ${ORIG_HEAD})
+            ## Undo the successful rebase that was rejected by user:
+	    git reset --hard
+	    abort_restore_user_context
         fi
     }
-    branch_cleanup
-elif test ! -z "${CONTINUABLE}"
-then
-    echo "WARNING: rebase failed.  --continuable specified -- proceed manually."
-    STATUS=1
+    abort_remove_weld_branches ${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}
 else
-    cat <<EOF
-WARNING:  Rebase phase failed.
-
-NOTE:     You have an option of fixing conflicts and continuing the operation,
-NOTE:     by using the following command:
-NOTE:
-NOTE:          weld --continue
-
-Do you want to FIX-manually-then-continue, or CANCEL-and-revert?
-
-EOF
-    echo -n "Your choice?  'f'IX / 'c'ANCEL=default  "
-    read ans
-    if test x$ans != xf
-    then
-	echo "; cancelling weld changes, as per user request"
-	git rebase --abort
-	git checkout $(head_ref_shortname ${ORIG_HEAD})
-	branch_cleanup
-    else
-	echo "; conflicts left in-place -- fix them and run"
-	echo ";    weld --continue"
-    fi
+    maybe_continuable "Rebase phase" "git rebase --abort" "${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}"
     STATUS=1
 fi
 
 set +x
-do_exit ${STATUS}
+do_exit ${STATUS} 'rebase'
