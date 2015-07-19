@@ -130,7 +130,7 @@ git_move_branch() {
 git_kill_branch() {
 	local branch="$1"
 
-	git branch -D ${b} || true
+	git branch -D ${b} 2>/dev/null || true
 }
 
 ABORT=
