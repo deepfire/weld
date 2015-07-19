@@ -24,7 +24,7 @@ do_exit() {
 }
 
 error() {
-	echo "ERROR: $1" > &2
+	echo "ERROR: $1" >&2
 	exit 1
 }
 
@@ -198,9 +198,14 @@ do
 done
 
 ###
-### Context
+### Context  (WARNING: doesn't contain NON_CONTINUABLE, CONTINUE and ABORT !)
 ###
 CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE"
+
+save_var() {
+	local var="$1"
+        eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
+}
 
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
@@ -248,8 +253,7 @@ then
 
     rm -f ${CTX_STORE}
     for var in ${CTX_VARS}
-    do
-        eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
+    do save_var ${var}
     done
 else
     echo "; restoring context from ${CTX_STORE}"
@@ -268,7 +272,7 @@ fi
 test x${TRACE} == x || set -x
 
 ###
-### Actual execution
+### Abort library
 ###
 abort_restore_user_context() {
 	git_move_branch $(git_head_ref_shortname ${BRANCH}) ${BRANCH_BACKUP}
@@ -298,6 +302,9 @@ abort() {
 	abort_remove_weld_branches ${cleanup_branches}
 }
 
+###
+### Continuation support
+###
 maybe_continuable() {
 	local failed_action="$1"
 	local abort_command="$2"
@@ -327,6 +334,12 @@ EOF
 	then abort "${abort_command}" ${cleanup_branches}; return
 	fi
 
+	## Save the extra state needed for --abort to work:
+	ABORT_COMMAND="${abort_command}"
+	CLEANUP_BRANCHES="${cleanup_branches}"
+	save_var ABORT_COMMAND
+	save_var CLEANUP_BRANCHES
+
 	if test -z ${CONTINUABLE}
 	then # Repeat the help message briefly:
 		echo "; conflicts left in-place -- fix them, 'git add' fixed, then run"
@@ -337,6 +350,14 @@ EOF
 		echo ";"
 	fi
 }
+
+### 0: --abort phase
+###
+if test ! -z "${ABORT}"
+then
+	abort "${ABORT_COMMAND}" ${CLEANUP_BRANCHES}
+	do_exit 0 'abort'
+fi
 
 ### Move
 ###
