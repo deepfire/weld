@@ -498,19 +498,27 @@ fi
 if test -z "${PHASE5_REBASE_FAILED}"
 then
     ## Safety check:
-    git diff --exit-code ${BRANCH_BACKUP} ${BRANCH} || {
+    echo -n "; weld:  verifying:  "
+    if git diff --exit-code ${BRANCH_BACKUP} ${BRANCH}
+    then
+	echo "OK -- zero diff between old and new versions of '${BRANCH}'"
+    else
+	echo "DIFF -- difference between old and new versions of '${BRANCH}' !"
         while true
         do
-            echo "WARNING: rebase produced differences.  What to do:"
-            echo -e "\n   [r]eview/[a]ccept or [any-key] to abort:"
+            echo "WARNING: non-zero diff between old and new versions of '${BRANCH}'.  What to do:"
+            echo -e "\n   [r]EVIEW / [a]CCEPT or [any-key] to ABORT:"
             echo -ne "\n  Your choice: "
             read choice
             case "${choice}" in
                 r )
+		    echo "You chose REVIEW"
                     git diff --exit-code ${BRANCH_BACKUP} ${BRANCH} | less;;
                 a )
+		    echo "You chose ACCEPT"
                     break;;
                 * )
+		    echo "You chose ABORT"
                     PHASE5_REBASE_FAILED=t
                     break;;
             esac
@@ -521,7 +529,7 @@ then
 	    git reset --hard
 	    abort_restore_user_context
         fi
-    }
+    fi
     abort_remove_weld_branches ${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}
 fi
 
