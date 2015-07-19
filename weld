@@ -98,6 +98,7 @@ usage() {
     --debug-vars       Print internal variables
     --debug-keep       Keep the temporary branches
     --trace            Trace command invocation
+    --show-session     Print the session saved in '${CTX_STORE}'
 
     --help             This.
 EOF
@@ -207,6 +208,15 @@ do
             NO_WELD=t
             NO_AMEND=t
             ;;
+	--show-session )
+	    if ctx_present_p
+	    then
+		    cat $(ctx_path)
+		    exit 0
+	    else
+		    error "context not present at $(ctx_path)"
+	    fi
+	    ;;
 	--help )
 	    usage; exit 1
 	    ;;
