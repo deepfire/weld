@@ -99,18 +99,18 @@ EOF
 help_continuable() {
 	local title="$1"
 	cat <<EOF
-   ${title}:
+   ${title}
 
-          0. Abort not performed:
-              - conflict are in the tree
-              - temporary weld branches are out there
+      0. Abort not performed:
+          - conflict are in the tree
+          - temporary weld branches are out there
 
-          1. Lost hope?  Abort by 'weld --abort'
+      1. It allows you to:
+          - fix the conflicts manually
+          - 'git add' deconflicted files
+          - resume weld:  'weld --continue'
 
-          2. But --continuable mode allows you to:
-              - fix the conflicts manually
-              - 'git add' now deconflicted files
-              - resume weld:  'weld --continue'
+      2. Lost hope?  Still can ABORT later by 'weld --abort'
 
 EOF
 }
@@ -329,7 +329,7 @@ EOF
 	fi
 
 	local fixp=
-	help_continuable "Abort operation or fix-manually-then-continue?"
+	help_continuable "Do you want to FIX-manually-then-continue?  If you do, then:"
 	if test ! -z ${CONTINUABLE}
 	then
 		fixp=f
@@ -339,8 +339,11 @@ EOF
 		read fixp
 	fi
 	if test x$fixp != xf # User declined to use fixup-then-continue
-	then abort "${abort_command}" ${cleanup_branches}; return
+	then
+		echo "You chose ABORT"
+		abort "${abort_command}" ${cleanup_branches}; return
 	fi
+	echo "You chose FIX"
 
 	## Save the extra state needed for --abort to work:
 	ABORT_COMMAND="${abort_command}"
@@ -350,10 +353,11 @@ EOF
 
 	if test -z ${CONTINUABLE}
 	then # Repeat the help message briefly:
-		echo "; conflicts left in-place -- fix them, 'git add' fixed, then run"
+		echo ";"
+		echo "; Conflicts left in-place -- fix them, 'git add' fixed, then run"
 		echo ";    weld --continue"
 		echo ";"
-		echo "; or, in despair:"
+		echo "; ..or, in despair:"
 		echo ";    weld --abort"
 		echo ";"
 	fi
@@ -390,7 +394,7 @@ then
     echo "; weld: git cherry-pick ${FROM}"
     if !          git cherry-pick ${FROM}
     then
-	maybe_continuable "Failed to cherry-pick ${FROM}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH}"
+	maybe_continuable "Cherry-pick ${FROM} on ${REBASE_BASE}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH}"
 	set +x
         do_exit 1 "cherry-pick ${FROM}"
     fi
