@@ -273,8 +273,10 @@ then
     do ctx_save_var ${var}
     done
 else
-    echo "; weld: restoring context from ${CTX_STORE}"
-    source ${CTX_STORE}
+    echo "; weld:  trying to restore context from ${CTX_STORE}"
+    ctx_present_p || error "--continue and --abort require that context is present in $(ctx_path)"
+    . ${CTX_STORE}
+    echo "; weld:  context restored"
 fi
 
 if test ! -z "${DEBUG_VARS}"
@@ -380,10 +382,7 @@ then
 	do_exit 0 'abort'
 elif test ! -z "${CONTINUE}"
 then
-	ctx_present_p || error "--continue requires that context is present in $(ctx_path)"
-	echo "WARNING:  restoring context from $(ctx_path)"
-	. $(ctx_path)
-	echo "WARNING:  context restored:  going to skip successful phases and resume failed operation"
+	echo "WARNING:  going to skip successful phases, then resume failed operation"
 fi
 
 ### 1: backup user branches, move -- updates HEAD
@@ -401,7 +400,7 @@ fi
 
 ### 2: cherrypick -- updates REBASE_BASE_BRANCH
 ###
-gif test -z "${PHASE2_CHERRY_DONE}" -a -z "${NO_CHERRY}"
+if test -z "${PHASE2_CHERRY_DONE}" -a -z "${NO_CHERRY}"
 then
     echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
     echo "; weld: git cherry-pick ${FROM}"
