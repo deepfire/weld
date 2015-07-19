@@ -24,7 +24,8 @@ ctx_save_var() {
 }
 ctx_commit_phase() {
 	local phase=$1
-	eval "$1=t"
+	local value=$2
+	eval "$1=${2:-t}"
 	ctx_save_var ${phase}
 }
 if ctx_present_p
@@ -32,7 +33,7 @@ then CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
 fi
 
 do_exit() {
-	local exit_status=$1
+	local exit_status=${1:-0}
 	local operation="$2"
 
 
@@ -405,8 +406,17 @@ if test -z "${PHASE2_CHERRY_DONE}" -a -z "${NO_CHERRY}"
 then
     echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
     echo "; weld: git cherry-pick ${FROM}"
-    if !          git cherry-pick ${FROM}
+    if test ! -z "${PHASE2_CHERRY_FAILED}"
     then
+        if !        git cherry-pick --continue
+	then
+	    echo "; weld:  cherry-pick --continue failed, try again?"
+	    do_exit 1 'continue'
+	fi
+	ctx_commit_phase PHASE2_CHERRY_FAILED ""
+    elif !          git cherry-pick ${FROM}
+    then
+	ctx_commit_phase PHASE2_CHERRY_FAILED
 	maybe_continuable "Cherry-pick ${FROM} on ${REBASE_BASE}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH} ${BRANCH_BACKUP}"
 	set +x
         do_exit 1 "cherry-pick ${FROM}"
@@ -416,7 +426,7 @@ fi
 
 ### 3: reset+add -- updates index
 ###
-if test -z "${PHASE3_MUTATE_DONE}" -a test -z "${NO_WELD}"
+if test -z "${PHASE3_MUTATE_DONE}" -a -z "${NO_WELD}"
 then
     test x${TRACE} != x || \
 	echo "; weld: git reset --mixed ${TO}"
@@ -427,7 +437,7 @@ fi
 
 ### 4: amend+commit -- updates REBASE_BASE_BRANCH
 ###
-if -z "${PHASE4_AMEND_DONE}" -a test -z "${NO_AMEND}"
+if test -z "${PHASE4_AMEND_DONE}" -a -z "${NO_AMEND}"
 then
     if test ! -z "${MANUAL_AMEND}"
     then
@@ -440,10 +450,30 @@ fi
 
 ### 5: rebase
 ###
-STATUS=0
-test x${TRACE} != x || \
-    echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})"
-if                git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})
+if test ! -z "${PHASE5_REBASE_FAILED}"
+then
+    if !                      git rebase --continue
+    then
+        echo            "; weld:  rebase --continue failed, try again?"
+        do_exit 1 'continue'
+    fi
+    ctx_commit_phase PHASE5_REBASE_FAILED ""
+    PHASE5_REBASE_FAILED=
+elif {
+	test x${TRACE} != x || \
+		echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})"
+                              git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH});
+}
+then
+    PHASE5_REBASE_FAILED=
+else
+    ctx_commit_phase PHASE5_REBASE_FAILED
+    maybe_continuable "Rebase phase" "git rebase --abort" "${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}"
+fi
+
+### 6: verify and cleanup
+###
+if test -z "${PHASE5_REBASE_FAILED}"
 then
     ## Safety check:
     git diff --exit-code ${BRANCH_BACKUP} ${BRANCH} || {
@@ -459,11 +489,11 @@ then
                 a )
                     break;;
                 * )
-                    STATUS=1
+                    PHASE5_REBASE_FAILED=t
                     break;;
             esac
         done
-        if test "${STATUS}" = 1
+        if test ! -z "${PHASE5_REBASE_FAILED}"
         then
             ## Undo the successful rebase that was rejected by user:
 	    git reset --hard
@@ -471,10 +501,7 @@ then
         fi
     }
     abort_remove_weld_branches ${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}
-else
-    maybe_continuable "Rebase phase" "git rebase --abort" "${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}"
-    STATUS=1
 fi
 
 set +x
-do_exit ${STATUS} 'rebase'
+do_exit "${PHASE5_REBASE_FAILED:+1}" 'rebase'
