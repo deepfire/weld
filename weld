@@ -124,7 +124,7 @@ git_move_branch() {
 	local branch="$1"
 	local to="$2"
 
-        git checkout ${branch}
+        git checkout --quiet ${branch}
         git reset --hard ${to}
 }
 
@@ -288,7 +288,7 @@ test x${TRACE} == x || set -x
 ###
 abort_restore_user_context() {
 	git_move_branch $(git_head_ref_shortname ${BRANCH}) ${BRANCH_BACKUP}
-        git checkout $(git_head_ref_shortname ${ORIG_HEAD})
+        git checkout --quiet $(git_head_ref_shortname ${ORIG_HEAD})
 	test -z "${DIFF_REAPPLY_ON_ERROR}" || {
 		git cherry-pick --no-commit ${DIFF_REAPPLY_ON_ERROR}
 		git_kill_branch ${DIFF_REAPPLY_ON_ERROR}
@@ -387,7 +387,7 @@ fi
 git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
 if test -z "${NO_MOVE}"
 then
-    git checkout ${REBASE_BASE_BRANCH}
+    git checkout --quiet ${REBASE_BASE_BRANCH}
 fi
 
 ### Cherrypick -- updates REBASE_BASE_BRANCH
