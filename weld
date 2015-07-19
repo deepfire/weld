@@ -4,19 +4,6 @@
 
 # set -e
 
-do_exit() {
-	local exit_status=$1
-	local operation="$2"
-
-
-	if test ${exit_status} = 0
-	then echo "; weld: successful '${operation}'"
-	else echo "; weld: FAILED '${operation}'" >&2
-	fi
-
-	exit ${exit_status}
-}
-
 error() {
 	echo "ERROR: $1" >&2
 	exit 1
@@ -38,6 +25,20 @@ ctx_save_var() {
 if ctx_present_p
 then CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
 fi
+
+do_exit() {
+	local exit_status=$1
+	local operation="$2"
+
+
+	if test ${exit_status} = 0
+	then echo "; weld: successful '${operation}'"
+	     rm $(ctx_path)
+	else echo "; weld: FAILED '${operation}'" >&2
+	fi
+
+	exit ${exit_status}
+}
 
 usage() {
     test -z "$1" || echo "ERROR: $1"
