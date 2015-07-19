@@ -367,7 +367,7 @@ EOF
 	fi
 }
 
-### 0: continuation phase:  handle --abort and --continue
+### 0: continuation:  handle --abort and --continue
 ###
 if test ! -z "${ABORT}"
 then
@@ -382,17 +382,19 @@ then
 	error "not implemented, sorry."
 fi
 
-### Move
+### 1: backup user branches
 ###
 git branch ${BRANCH_BACKUP}      ${BRANCH}
 git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
 
+### 2: move -- updates HEAD
+###
 if test -z "${NO_MOVE}"
 then
     git checkout --quiet ${REBASE_BASE_BRANCH}
 fi
 
-### Cherrypick -- updates REBASE_BASE_BRANCH
+### 3: cherrypick -- updates REBASE_BASE_BRANCH
 ###
 if test -z "${NO_CHERRY}"
 then
@@ -406,7 +408,7 @@ then
     fi
 fi
 
-### Reset+Add -- updates index
+### 4: reset+add -- updates index
 ###
 if test -z "${NO_WELD}"
 then
@@ -416,7 +418,7 @@ then
     git add --all
 fi
 
-### Amend+Commit -- updates REBASE_BASE_BRANCH
+### 5: amend+commit -- updates REBASE_BASE_BRANCH
 ###
 if test -z "${NO_AMEND}"
 then
@@ -428,7 +430,7 @@ then
     fi
 fi
 
-### Rebase
+### 6: rebase
 ###
 STATUS=0
 test x${TRACE} != x || \
