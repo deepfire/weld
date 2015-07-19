@@ -93,6 +93,7 @@ usage() {
     --debug-keep       Keep the temporary branches
     --trace            Trace command invocation
 
+    --help             This.
 EOF
 }
 
@@ -200,6 +201,9 @@ do
             NO_WELD=t
             NO_AMEND=t
             ;;
+	--help )
+	    usage; exit 1
+	    ;;
         "--"* )
             error "unknown option: $1"
             ;;
