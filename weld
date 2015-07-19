@@ -93,6 +93,7 @@ usage() {
     --continuable      When either a cherry-pick, or a rebase fails, do not
                          disturb the state of failure with weld abort operations
     --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
+    --cont-skip        Pass --skip to cherry-pick/rebase, instead of --continue
     --abort            Abort weld session
 
     --debug-vars       Print internal variables
@@ -156,16 +157,19 @@ do
         in
 	--non-continuable )                   NON_CONTINUABLE=t;
 					      test -z "${CONTINUABLE}" ||
-						  error "--continuable provided with --non-continuable";;
+						  error "--continuable conflicts with --non-continuable";;
         --continuable )                       CONTINUABLE=t;
 					      test -z "${NON_CONTINUABLE}" ||
-						  error "--continuable provided with --non-continuable";;
+						  error "--continuable conflicts with --non-continuable";;
 	--continue )                          CONTINUE=t;
 					      test -z "${ABORT}" ||
-						  error "--continue provided with --abort";;
+						  error "--continue conflicts with --abort";;
+	--cont-skip )                         CONT_SKIP=t;
+					      test ! -z "${CONTINUE}" ||
+						  error "--cont-skip only makes sense with --continue";;
 	--abort )                             ABORT=t;
 					      test -z "${CONTINUE}" ||
-						  error "--continue provided with --abort";;
+						  error "--continue conflicts with --abort";;
         --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
         --no-move )                           NO_MOVE=t;;
         --no-cherry | --no-cherrypick )       NO_CHERRY=t;;
@@ -418,9 +422,13 @@ then
     echo "; weld: git cherry-pick ${FROM}"
     if test ! -z "${PHASE2_CHERRY_FAILED}"
     then
-        if !        git cherry-pick --continue
+	continue_mode=continue
+	if test ! -z "${CONT_SKIP}"
+	then continue_mode=quit
+	fi
+        if !        git cherry-pick --${continue_mode}
 	then
-	    echo "; weld:  cherry-pick --continue failed, try again?"
+	    echo "; weld:  cherry-pick --${continue_mode} failed, try again?"
 	    do_exit 1 'continue'
 	fi
 	ctx_commit_phase PHASE2_CHERRY_FAILED ""
@@ -462,9 +470,13 @@ fi
 ###
 if test ! -z "${PHASE5_REBASE_FAILED}"
 then
-    if !                      git rebase --continue
+    continue_mode=continue
+    if test ! -z "${CONT_SKIP}"
+    then continue_mode=skip
+    fi
+    if !                      git rebase --${continue_mode}
     then
-        echo            "; weld:  rebase --continue failed, try again?"
+        echo            "; weld:  rebase --${continue_mode} failed, try again?"
         do_exit 1 'continue'
     fi
     ctx_commit_phase PHASE5_REBASE_FAILED ""
