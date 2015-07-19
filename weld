@@ -358,9 +358,7 @@ EOF
 
 	## Save the extra state needed for --abort to work:
 	ABORT_COMMAND="${abort_command}"
-	CLEANUP_BRANCHES="${cleanup_branches}"
 	ctx_save_var ABORT_COMMAND
-	ctx_save_var CLEANUP_BRANCHES
 
 	if test -z ${CONTINUABLE}
 	then # Repeat the help message briefly:
@@ -391,6 +389,9 @@ if test -z "${PHASE1_BUBM_DONE}"
 then
 	git branch ${BRANCH_BACKUP}      ${BRANCH}
 	git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
+	CLEANUP_BRANCHES="${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}"
+	ctx_save_var CLEANUP_BRANCHES
+
 	if test -z "${NO_MOVE}"
 	then
 		git checkout --quiet ${REBASE_BASE_BRANCH}
