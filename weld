@@ -28,6 +28,9 @@ ctx_commit_phase() {
 	eval "$1=${2:-t}"
 	ctx_save_var ${phase}
 }
+ctx_continue() {
+	weld --continue
+}
 if ctx_present_p
 then CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
 fi
@@ -361,9 +364,15 @@ EOF
 	then
 		fixp=f
 	else
-		echo "FIX-manually-then-continue, or ABORT?"
-		echo -n "Your choice?  'f'IX / 'a'BORT=default  "
+		echo "FIX-manually-then-continue, already-fixed-CONTINUE-now or ABORT?"
+		echo -n "Your choice?  'f'IX / 'c'ONTINUE / 'a'BORT=default  "
 		read fixp
+	fi
+	if test x$fixp = xc # User already fixed things, and wants to continue now
+	then
+		echo "You chose CONTINUE"
+		trap ctx_continue EXIT
+		exit
 	fi
 	if test x$fixp != xf # User declined to use fixup-then-continue
 	then
