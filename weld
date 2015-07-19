@@ -104,6 +104,11 @@ usage() {
     --trace            Trace command invocation
     --show-session     Print the session saved in '${CTX_STORE}'
 
+    --pause-after-move
+    --pause-after-cherry
+    --pause-after-mutate
+    --pause-after-amend
+
     --help             This.
 EOF
 }
@@ -125,6 +130,15 @@ help_continuable() {
       2. Lost hope?  Still can ABORT later by 'weld --abort'
 
 EOF
+}
+
+maybe_pause_after_phase() {
+	local phase=$1
+	if eval "test ! -z \${PAUSE_AFTER_${phase}}"
+	then
+		echo "; weld:  pausing after phase ${phase}" >&2
+		read foo
+	fi
 }
 
 git_head_ref_shortname() {
@@ -181,6 +195,10 @@ do
         --manual-amend )                      MANUAL_AMEND=t;;
         --debug-vars )                        DEBUG_VARS=t;;
         --debug-keep )                        DEBUG_KEEP=t;;
+	--pause-after-move )                  PAUSE_AFTER_MOVE=t;;
+	--pause-after-cherry )                PAUSE_AFTER_CHERRY=t;;
+	--pause-after-mutate )                PAUSE_AFTER_MUTATE=t;;
+	--pause-after-amend )                 PAUSE_AFTER_AMEND=t;;
 	--trace )                             TRACE=t;;
         --branch )
             BRANCH="refs/heads/$2"
@@ -410,7 +428,7 @@ fi
 
 ### 1: backup user branches, move -- updates HEAD
 ###
-if test -z "${PHASE1_BUBM_DONE}"
+if test -z "${PHASE1_MOVE_DONE}"
 then
 	git branch ${BRANCH_BACKUP}      ${BRANCH}
 	git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
@@ -421,7 +439,8 @@ then
 	then
 		git checkout --quiet ${REBASE_BASE_BRANCH}
 	fi
-	ctx_commit_phase PHASE1_BUBM_DONE
+	ctx_commit_phase PHASE1_MOVE_DONE
+	maybe_pause_after_phase MOVE
 fi
 
 ### 2: cherrypick -- updates REBASE_BASE_BRANCH
@@ -450,6 +469,7 @@ then
         do_exit 1 "cherry-pick ${FROM}"
     fi
     ctx_commit_phase PHASE2_CHERRY_DONE
+    maybe_pause_after_phase CHERRY
 fi
 
 ### 3: reset+add -- updates index
@@ -461,6 +481,7 @@ then
     git reset --mixed ${TO}
     git add --all
     ctx_commit_phase PHASE3_MUTATE_DONE
+    maybe_pause_after_phase MUTATE
 fi
 
 ### 4: amend+commit -- updates REBASE_BASE_BRANCH
@@ -474,6 +495,7 @@ then
         eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
     fi
     ctx_commit_phase PHASE4_AMEND_DONE
+    maybe_pause_after_phase AMEND
 fi
 
 ### 5: rebase
