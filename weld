@@ -22,6 +22,11 @@ ctx_save_var() {
 	local var="$1"
         eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
 }
+ctx_commit_phase() {
+	local phase=$1
+	eval "$1=t"
+	ctx_save_var ${phase}
+}
 if ctx_present_p
 then CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
 fi
@@ -378,25 +383,25 @@ then
 	ctx_present_p || error "--continue requires that context is present in $(ctx_path)"
 	echo "WARNING:  restoring context from $(ctx_path)"
 	. $(ctx_path)
-	echo "WARNING:  context restored, resuming operation"
-	error "not implemented, sorry."
+	echo "WARNING:  context restored:  going to skip successful phases and resume failed operation"
 fi
 
-### 1: backup user branches
+### 1: backup user branches, move -- updates HEAD
 ###
-git branch ${BRANCH_BACKUP}      ${BRANCH}
-git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
-
-### 2: move -- updates HEAD
-###
-if test -z "${NO_MOVE}"
+if test -z "${PHASE1_BUBM_DONE}"
 then
-    git checkout --quiet ${REBASE_BASE_BRANCH}
+	git branch ${BRANCH_BACKUP}      ${BRANCH}
+	git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
+	if test -z "${NO_MOVE}"
+	then
+		git checkout --quiet ${REBASE_BASE_BRANCH}
+	fi
+	ctx_commit_phase PHASE1_BUBM_DONE
 fi
 
-### 3: cherrypick -- updates REBASE_BASE_BRANCH
+### 2: cherrypick -- updates REBASE_BASE_BRANCH
 ###
-if test -z "${NO_CHERRY}"
+gif test -z "${PHASE2_CHERRY_DONE}" -a -z "${NO_CHERRY}"
 then
     echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
     echo "; weld: git cherry-pick ${FROM}"
@@ -406,21 +411,23 @@ then
 	set +x
         do_exit 1 "cherry-pick ${FROM}"
     fi
+    ctx_commit_phase PHASE2_CHERRY_DONE
 fi
 
-### 4: reset+add -- updates index
+### 3: reset+add -- updates index
 ###
-if test -z "${NO_WELD}"
+if test -z "${PHASE3_MUTATE_DONE}" -a test -z "${NO_WELD}"
 then
     test x${TRACE} != x || \
 	echo "; weld: git reset --mixed ${TO}"
     git reset --mixed ${TO}
     git add --all
+    ctx_commit_phase PHASE3_MUTATE_DONE
 fi
 
-### 5: amend+commit -- updates REBASE_BASE_BRANCH
+### 4: amend+commit -- updates REBASE_BASE_BRANCH
 ###
-if test -z "${NO_AMEND}"
+if -z "${PHASE4_AMEND_DONE}" -a test -z "${NO_AMEND}"
 then
     if test ! -z "${MANUAL_AMEND}"
     then
@@ -428,9 +435,10 @@ then
     else
         eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
     fi
+    ctx_commit_phase PHASE4_AMEND_DONE
 fi
 
-### 6: rebase
+### 5: rebase
 ###
 STATUS=0
 test x${TRACE} != x || \
