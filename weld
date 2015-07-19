@@ -4,12 +4,6 @@
 
 # set -e
 
-CTX_STORE=.git/weld-context
-CTX_CMDLINE="$@"
-if test -f ${CTX_STORE}; then
-    CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
-fi
-
 do_exit() {
 	local exit_status=$1
 	local operation="$2"
@@ -27,6 +21,23 @@ error() {
 	echo "ERROR: $1" >&2
 	exit 1
 }
+
+## Context library
+CTX_STORE=.git/weld-context
+CTX_CMDLINE="$@"
+ctx_path() {
+	echo ${CTX_STORE}
+}
+ctx_present_p() {
+	test -f ${CTX_STORE}
+}
+ctx_save_var() {
+	local var="$1"
+        eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
+}
+if ctx_present_p
+then CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
+fi
 
 usage() {
     test -z "$1" || echo "ERROR: $1"
@@ -121,6 +132,7 @@ git_kill_branch() {
 	git branch -D ${b} || true
 }
 
+ABORT=
 CONTINUE=
 
 GIT_AMEND_NO_EDIT_MESSAGE="--no-edit"
@@ -202,11 +214,6 @@ done
 ###
 CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE"
 
-save_var() {
-	local var="$1"
-        eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
-}
-
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
     TO="$1"
@@ -253,7 +260,7 @@ then
 
     rm -f ${CTX_STORE}
     for var in ${CTX_VARS}
-    do save_var ${var}
+    do ctx_save_var ${var}
     done
 else
     echo "; restoring context from ${CTX_STORE}"
@@ -337,8 +344,8 @@ EOF
 	## Save the extra state needed for --abort to work:
 	ABORT_COMMAND="${abort_command}"
 	CLEANUP_BRANCHES="${cleanup_branches}"
-	save_var ABORT_COMMAND
-	save_var CLEANUP_BRANCHES
+	ctx_save_var ABORT_COMMAND
+	ctx_save_var CLEANUP_BRANCHES
 
 	if test -z ${CONTINUABLE}
 	then # Repeat the help message briefly:
