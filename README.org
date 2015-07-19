@@ -1,0 +1,82 @@
+#+STARTUP: hidestars odd
+
+* What?
+
+  =weld= automates =git= history rewriting to ease pre-submission branch cleanup,
+  mainly.
+
+  You could say it generalizes =git-amend=, by allowing different flavors of
+  amending /arbitrarily deep in history/ -- and easier than what =--interactive=
+  modes of git provide.  But it's actually more than just about amending.
+
+  So, without further ado -- what it can do:
+
+* Modes of operation
+
+  - weld =A= =[B]= :: given any commits *A* and *B*, such that *A* is an ancestor of *B*, it
+            "welds" *B* into *A* -- by rewriting the current branch, so that:
+
+    1. *A`* == *A* + *B*
+    2. *B* disappears
+
+    =B= defaults to the tip of =HEAD=
+
+  - weldit =A=, weldname =A= :: edit commit message/author of any commit *A* in the current branch -- by
+       rewriting it, so that:
+
+    1. *A`* == *A*, but with a different commit message/author
+
+    Note, that =weldname= depends on =author-id.sh= being able to resolve
+    committer nicknames into full names with emails.
+
+  - weldrop =A= :: drop any commit *A* from the current branch
+
+  - weldui =A= :: launch =git-gui= at any commit *A*, and make any changes "just work":
+    - commit message
+    - commit splits
+    - changes added or dropped
+
+  - weldmove =A= =[B]= :: given any commits *A* and *B*, such that *A* is an ancestor of *B*, it
+       *B* directly atop of *A*
+
+    =B= defaults to the tip of =HEAD=
+
+* Safety
+
+  *No unwanted changes* -- is =weld='s modus operandi.
+
+  This is achieved by:
+
+  - Zero difference invariant :: at the end of operation, as a /mandatory step/:
+    - =weld= verifies that =git-diff= between the origin and rewritten versions of
+      the operated-on branch is zero
+    - /if there is a difference/, =weld= prints it out and asks what to do --
+      since there might be a valid reason for the changes, so you get the options
+      to:
+      - accept :: the branch that is changed with respect to its origin version
+      - abort :: the =weld= operation entirely
+    - this actually even includes =weldrop=, whose sole /raison d'etre/ is
+      changing the branch contents
+
+  - Backup branches :: ..before doing anything
+
+  - Clean state :: ..as a prerequisite for doing anything
+
+* Continuability
+
+  Whenever a =cherry-pick= or a =rebase= face a conflict, =weld= provides
+  following options (through a command-line switch, otherwise interactively):
+
+  - Abort :: this is the default -- abort the =weld= operation, restore peace of mind
+  - Fix :: does not abort, save the =weld= /session/, allowing you to:
+
+    - fix and continue :: this requires that you:
+      1. resolve the conflicts
+      2. stage conflict resolutions
+      3. =weld --continue=, or alternatively, to skip a commit that reduces to nothing -- =weld --continue --cont-skip=
+
+    - give up and still abort :: when everything is just wrong, you can still always =weld --abort=
+
+  - Continue immediately :: you can resolve conflicts and stage resolutions
+       while =weld= waits for your interactive input -- unless there was a
+       switch specified (=--non-continuable= or =--continuable=)
