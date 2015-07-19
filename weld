@@ -237,7 +237,7 @@ done
 ###
 ### Context  (WARNING: doesn't contain NON_CONTINUABLE, CONTINUE and ABORT !)
 ###
-CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE"
+CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE"
 
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
@@ -280,6 +280,7 @@ then
 	REBASE_BASE=${TO}
     fi
 
+    BRANCH_SHORT=$(git_head_ref_shortname ${BRANCH})
     REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
     BRANCH_BACKUP="backup-weld-${RANDOM}"
 
@@ -309,7 +310,7 @@ test x${TRACE} == x || set -x
 ### Abort library
 ###
 abort_restore_user_context() {
-	git_move_branch $(git_head_ref_shortname ${BRANCH}) ${BRANCH_BACKUP}
+	git_move_branch ${BRANCH_SHORT} ${BRANCH_BACKUP}
         git checkout --quiet $(git_head_ref_shortname ${ORIG_HEAD})
 	test -z "${DIFF_REAPPLY_ON_ERROR}" || {
 		git cherry-pick --no-commit ${DIFF_REAPPLY_ON_ERROR}
@@ -483,8 +484,8 @@ then
     PHASE5_REBASE_FAILED=
 elif {
 	test x${TRACE} != x || \
-		echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})"
-                              git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH});
+		echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH_SHORT}"
+                              git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH_SHORT};
 }
 then
     PHASE5_REBASE_FAILED=
@@ -499,21 +500,21 @@ if test -z "${PHASE5_REBASE_FAILED}"
 then
     ## Safety check:
     echo -n "; weld:  verifying:  "
-    if git diff --exit-code ${BRANCH_BACKUP} ${BRANCH}
+    if git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT}
     then
-	echo "OK -- zero diff between old and new versions of '${BRANCH}'"
+	echo "OK -- zero diff between old and new versions of '${BRANCH_SHORT}'"
     else
-	echo "DIFF -- difference between old and new versions of '${BRANCH}' !"
+	echo "DIFF -- difference between old and new versions of '${BRANCH_SHORT}' !"
         while true
         do
-            echo "WARNING: non-zero diff between old and new versions of '${BRANCH}'.  What to do:"
+            echo "WARNING: non-zero diff between old and new versions of '${BRANCH_SHORT}'.  What to do:"
             echo -e "\n   [r]EVIEW / [a]CCEPT or [any-key] to ABORT:"
             echo -ne "\n  Your choice: "
             read choice
             case "${choice}" in
                 r )
 		    echo "You chose REVIEW"
-                    git diff --exit-code ${BRANCH_BACKUP} ${BRANCH} | less;;
+                    git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT} | less;;
                 a )
 		    echo "You chose ACCEPT"
                     break;;
