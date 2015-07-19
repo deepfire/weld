@@ -384,7 +384,9 @@ fi
 
 ### Move
 ###
+git branch ${BRANCH_BACKUP}      ${BRANCH}
 git branch ${REBASE_BASE_BRANCH} ${REBASE_BASE}
+
 if test -z "${NO_MOVE}"
 then
     git checkout --quiet ${REBASE_BASE_BRANCH}
@@ -398,7 +400,7 @@ then
     echo "; weld: git cherry-pick ${FROM}"
     if !          git cherry-pick ${FROM}
     then
-	maybe_continuable "Cherry-pick ${FROM} on ${REBASE_BASE}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH}"
+	maybe_continuable "Cherry-pick ${FROM} on ${REBASE_BASE}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH} ${BRANCH_BACKUP}"
 	set +x
         do_exit 1 "cherry-pick ${FROM}"
     fi
@@ -428,8 +430,6 @@ fi
 
 ### Rebase
 ###
-git branch ${BRANCH_BACKUP} ${BRANCH}
-
 STATUS=0
 test x${TRACE} != x || \
     echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} $(git_head_ref_shortname ${BRANCH})"
