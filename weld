@@ -52,12 +52,14 @@ usage() {
     --reauthor[-commit] NICKNAME
                        Change author of TO-COMMIT to NICKNAME.
     --drop[-commit]    Drop TO-COMMIT.  Implies --no-mutate
-    --no-restore       When either a cherry-pick, or a rebase fails, do not
+
+    --continuable      When either a cherry-pick, or a rebase fails, do not
                          disturb the state of failure with recovery operations
+    --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
+
     --debug-vars       Print internal variables
     --debug-keep       Keep the temporary branches
     --trace            Trace command invocation
-    --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
 
 EOF
 }
@@ -91,7 +93,8 @@ while test -z "${opt_done}"
 do
     case "$1"
         in
-        --no-restore )                        NO_RESTORE=t;;
+        --continuable )                       CONTINUABLE=t;;
+	--continue )                          CONTINUE=t;;
         --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
         --no-move )                           NO_MOVE=t;;
         --no-cherry | --no-cherrypick )       NO_CHERRY=t;;
@@ -101,7 +104,6 @@ do
         --debug-vars )                        DEBUG_VARS=t;;
         --debug-keep )                        DEBUG_KEEP=t;;
 	--trace )                             TRACE=t;;
-	--continue )                          CONTINUE=t;;
         --branch )
             BRANCH="refs/heads/$2"
             git show-ref --quiet --verify ${BRANCH} || {
@@ -152,7 +154,7 @@ done
 ###
 ### Context
 ###
-CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR NO_RESTORE REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
+CTX_VARS="BRANCH TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR REAPPLY_FROM_ON_ERROR REBASE_BASE_BRANCH BACKUP_BRANCH CTX_CMDLINE"
 
 if test -z "${CONTINUE}"
 then
@@ -243,7 +245,7 @@ then
     if !          git cherry-pick ${FROM}
     then
         echo "ERROR: failed to cherry-pick ${FROM}"
-        if test -z "${NO_RESTORE}"
+        if test -z "${CONTINUABLE}"
         then
             git cherry-pick --abort
             git checkout $(head_ref_shortname ${ORIG_HEAD})
@@ -320,9 +322,9 @@ then
         fi
     }
     branch_cleanup
-elif test ! -z "${NO_RESTORE}"
+elif test ! -z "${CONTINUABLE}"
 then
-    echo "WARNING: rebase failed.  --no-restore specified -- proceed manually."
+    echo "WARNING: rebase failed.  --continuable specified -- proceed manually."
     STATUS=1
 else
     cat <<EOF
