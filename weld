@@ -188,7 +188,7 @@ do
             then
 	        error "unknown author id: $2"
             else
-                echo "; resolved author id <$2> to ${full_id}"
+                echo "; weld: resolved author id <$2> to ${full_id}"
             fi
             shift
             GIT_AMEND_AUTHOR="--author \"${full_id}\""
@@ -264,7 +264,7 @@ then
     do ctx_save_var ${var}
     done
 else
-    echo "; restoring context from ${CTX_STORE}"
+    echo "; weld: restoring context from ${CTX_STORE}"
     source ${CTX_STORE}
 fi
 
@@ -304,7 +304,7 @@ abort() {
 	local abort_command="$1"; shift
 	local cleanup_branches="$*"
 
-	echo "; Aborting weld operation"
+	echo "; weld: aborting operation"
 	${abort_command}
 	abort_restore_user_context
 	abort_remove_weld_branches ${cleanup_branches}
