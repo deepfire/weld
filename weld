@@ -358,12 +358,19 @@ EOF
 	fi
 }
 
-### 0: --abort phase
+### 0: continuation phase:  handle --abort and --continue
 ###
 if test ! -z "${ABORT}"
 then
 	abort "${ABORT_COMMAND}" ${CLEANUP_BRANCHES}
 	do_exit 0 'abort'
+elif test ! -z "${CONTINUE}"
+then
+	ctx_present_p || error "--continue requires that context is present in $(ctx_path)"
+	echo "WARNING:  restoring context from $(ctx_path)"
+	. $(ctx_path)
+	echo "WARNING:  context restored, resuming operation"
+	error "not implemented, sorry."
 fi
 
 ### Move
