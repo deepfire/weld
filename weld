@@ -50,9 +50,9 @@ do_exit() {
 }
 
 usage() {
-    test -z "$1" || echo "ERROR: $1"
+	test -z "$1" || echo "ERROR: $1"
 
-    cat <<EOF
+	cat <<EOF
   Usage:
     $0 OPTIONS* TO-COMMIT [FROM-COMMIT]
 
@@ -142,7 +142,7 @@ maybe_pause_after_phase() {
 }
 
 git_head_ref_shortname() {
-    echo $1 | sed s%refs/heads/%%
+	echo $1 | sed s%refs/heads/%%
 }
 
 git_move_branch() {
@@ -170,7 +170,7 @@ BRANCH="${ORIG_HEAD}"
 
 while test -z "${opt_done}"
 do
-    case "$1"
+	case "$1"
         in
 	--non-continuable )                   NON_CONTINUABLE=t;
 					      test -z "${CONTINUABLE}" ||
@@ -201,58 +201,58 @@ do
 	--pause-after-amend )                 PAUSE_AFTER_AMEND=t;;
 	--trace )                             TRACE=t;;
         --branch )
-            BRANCH="refs/heads/$2"
-            git show-ref --quiet --verify ${BRANCH} ||
-	        error "not a local branch: $2"
-            shift
-            ;;
+		BRANCH="refs/heads/$2"
+		git show-ref --quiet --verify ${BRANCH} ||
+			error "not a local branch: $2"
+		shift
+		;;
         --no-mutate )
-            NO_MOVE=t
-            NO_CHERRY=t
-            NO_WELD=t
-            NO_AMEND=t
-            ;;
+		NO_MOVE=t
+		NO_CHERRY=t
+		NO_WELD=t
+		NO_AMEND=t
+		;;
         --reauthor | --reauthor-commit )
-            REAUTHOR_COMMIT=t
-            NO_CHERRY=t
-            NO_WELD=t
-            full_id="$(author-id $2)"
-            if test -z "${full_id}"
-            then
-	        error "unknown author id: $2"
-            else
-                echo "; weld: resolved author id <$2> to ${full_id}"
-            fi
-            shift
-            GIT_AMEND_AUTHOR="--author \"${full_id}\""
-            ;;
+		REAUTHOR_COMMIT=t
+		NO_CHERRY=t
+		NO_WELD=t
+		full_id="$(author-id $2)"
+		if test -z "${full_id}"
+		then
+			error "unknown author id: $2"
+		else
+			echo "; weld: resolved author id <$2> to ${full_id}"
+		fi
+		shift
+		GIT_AMEND_AUTHOR="--author \"${full_id}\""
+		;;
         --drop | --drop-commit )
-            DROP_COMMIT=t
-            NO_MOVE=t
-            NO_CHERRY=t
-            NO_WELD=t
-            NO_AMEND=t
-            ;;
+		DROP_COMMIT=t
+		NO_MOVE=t
+		NO_CHERRY=t
+		NO_WELD=t
+		NO_AMEND=t
+		;;
 	--show-session )
-	    if ctx_present_p
-	    then
-		    cat $(ctx_path)
-		    exit 0
-	    else
-		    error "context not present at $(ctx_path)"
-	    fi
-	    ;;
+		if ctx_present_p
+		then
+			cat $(ctx_path)
+			exit 0
+		else
+			error "context not present at $(ctx_path)"
+		fi
+		;;
 	--help )
-	    usage; exit 1
-	    ;;
+		usage; exit 1
+		;;
         "--"* )
-            error "unknown option: $1"
-            ;;
+		error "unknown option: $1"
+		;;
         * )
-            break
-            ;;
-    esac
-    shift
+		break
+		;;
+	esac
+	shift
 done
 
 ###
@@ -262,67 +262,67 @@ CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE 
 
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
-    TO="$1"
+	TO="$1"
 
-    test -z "${TO}" && {
-	usage "TO argument is empty"
-	exit 1
-    }
+	test -z "${TO}" && {
+		usage "TO argument is empty"
+		exit 1
+	}
 
-    if test "$2" = "tree"
-    then
-	test x${TRACE} == x || set -x
-	git add --all
-	DIFF_REAPPLY_ON_ERROR="saved-tree-${RANDOM}"
-	git branch "${DIFF_REAPPLY_ON_ERROR}"
-	git commit -m "working tree at ${ORIG_HEAD}"
-	FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
-	echo "; weld: saved working tree as commit ${FROM}"
-	git reset --hard HEAD^1
-	set +x
-    else
-	FROM="${2:-${BRANCH}}"
-	if test -z "$2${NO_WELD}"
+	if test "$2" = "tree"
 	then
-            echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
+		test x${TRACE} == x || set -x
+		git add --all
+		DIFF_REAPPLY_ON_ERROR="saved-tree-${RANDOM}"
+		git branch "${DIFF_REAPPLY_ON_ERROR}"
+		git commit -m "working tree at ${ORIG_HEAD}"
+		FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
+		echo "; weld: saved working tree as commit ${FROM}"
+		git reset --hard HEAD^1
+		set +x
+	else
+		FROM="${2:-${BRANCH}}"
+		if test -z "$2${NO_WELD}"
+		then
+			echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
+		fi
 	fi
-    fi
 
-    if git status --porcelain 2>&1 | grep "^??" > /dev/null
-    then
-	echo "FATAL: unstaged changes in working tree -- safe operation impossible."
-	exit 1
-    fi
+	if git status --porcelain 2>&1 | grep "^??" > /dev/null
+	then
+		echo "FATAL: unstaged changes in working tree -- safe operation impossible."
+		exit 1
+	fi
 
-    if test ! -z "${DROP_COMMIT}"
-    then
-	REBASE_BASE=${TO}^1
-    else
-	REBASE_BASE=${TO}
-    fi
+	if test ! -z "${DROP_COMMIT}"
+	then
+		REBASE_BASE=${TO}^1
+	else
+		REBASE_BASE=${TO}
+	fi
 
-    BRANCH_SHORT=$(git_head_ref_shortname ${BRANCH})
-    REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
-    BRANCH_BACKUP="backup-weld-${RANDOM}"
+	BRANCH_SHORT=$(git_head_ref_shortname ${BRANCH})
+	REBASE_BASE_BRANCH="rebase-weld-${RANDOM}"
+	BRANCH_BACKUP="backup-weld-${RANDOM}"
 
-    rm -f ${CTX_STORE}
-    for var in ${CTX_VARS}
-    do ctx_save_var ${var}
-    done
+	rm -f ${CTX_STORE}
+	for var in ${CTX_VARS}
+	do ctx_save_var ${var}
+	done
 else
-    echo "; weld:  trying to restore context from ${CTX_STORE}"
-    ctx_present_p || error "--continue and --abort require that context is present in $(ctx_path)"
-    . ${CTX_STORE}
-    echo "; weld:  context restored"
+	echo "; weld:  trying to restore context from ${CTX_STORE}"
+	ctx_present_p || error "--continue and --abort require that context is present in $(ctx_path)"
+	. ${CTX_STORE}
+	echo "; weld:  context restored"
 fi
 
 if test ! -z "${DEBUG_VARS}"
 then
-    echo "; weld: internal state:"
-    for var in ${CTX_VARS}
-    do
-        eval "echo \"    $var: \${$var}\""
-    done
+	echo "; weld: internal state:"
+	for var in ${CTX_VARS}
+	do
+		eval "echo \"    $var: \${$var}\""
+	done
 fi
 
 test x${TRACE} == x || set -x
@@ -447,122 +447,122 @@ fi
 ###
 if test -z "${PHASE2_CHERRY_DONE}" -a -z "${NO_CHERRY}"
 then
-    echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
-    echo "; weld: git cherry-pick ${FROM}"
-    if test ! -z "${PHASE2_CHERRY_FAILED}"
-    then
-	continue_mode=continue
-	if test ! -z "${CONT_SKIP}"
-	then continue_mode=quit
-	fi
-        if !        git cherry-pick --${continue_mode}
+	echo "; weld: now at ${REBASE_BASE_BRANCH}/${REBASE_BASE}"
+	echo "; weld: git cherry-pick ${FROM}"
+	if test ! -z "${PHASE2_CHERRY_FAILED}"
 	then
-	    echo "; weld:  cherry-pick --${continue_mode} failed, try again?"
-	    do_exit 1 'continue'
+		continue_mode=continue
+		if test ! -z "${CONT_SKIP}"
+		then continue_mode=quit
+		fi
+		if !        git cherry-pick --${continue_mode}
+		then
+			echo "; weld:  cherry-pick --${continue_mode} failed, try again?"
+			do_exit 1 'continue'
+		fi
+		ctx_commit_phase PHASE2_CHERRY_FAILED ""
+	elif !          git cherry-pick ${FROM}
+	then
+		ctx_commit_phase PHASE2_CHERRY_FAILED
+		maybe_continuable "Cherry-pick ${FROM} on ${REBASE_BASE}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH} ${BRANCH_BACKUP}"
+		set +x
+		do_exit 1 "cherry-pick ${FROM}"
 	fi
-	ctx_commit_phase PHASE2_CHERRY_FAILED ""
-    elif !          git cherry-pick ${FROM}
-    then
-	ctx_commit_phase PHASE2_CHERRY_FAILED
-	maybe_continuable "Cherry-pick ${FROM} on ${REBASE_BASE}" "git cherry-pick --abort" "${REBASE_BASE_BRANCH} ${BRANCH_BACKUP}"
-	set +x
-        do_exit 1 "cherry-pick ${FROM}"
-    fi
-    ctx_commit_phase PHASE2_CHERRY_DONE
-    maybe_pause_after_phase CHERRY
+	ctx_commit_phase PHASE2_CHERRY_DONE
+	maybe_pause_after_phase CHERRY
 fi
 
 ### 3: reset+add -- updates index
 ###
 if test -z "${PHASE3_MUTATE_DONE}" -a -z "${NO_WELD}"
 then
-    test x${TRACE} != x || \
-	echo "; weld: git reset --mixed ${TO}"
-    git reset --mixed ${TO}
-    git add --all
-    ctx_commit_phase PHASE3_MUTATE_DONE
-    maybe_pause_after_phase MUTATE
+	test x${TRACE} != x || \
+		echo "; weld: git reset --mixed ${TO}"
+	git reset --mixed ${TO}
+	git add --all
+	ctx_commit_phase PHASE3_MUTATE_DONE
+	maybe_pause_after_phase MUTATE
 fi
 
 ### 4: amend+commit -- updates REBASE_BASE_BRANCH
 ###
 if test -z "${PHASE4_AMEND_DONE}" -a -z "${NO_AMEND}"
 then
-    if test ! -z "${MANUAL_AMEND}"
-    then
-        git gui
-    else
-        eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
-    fi
-    ctx_commit_phase PHASE4_AMEND_DONE
-    maybe_pause_after_phase AMEND
+	if test ! -z "${MANUAL_AMEND}"
+	then
+		git gui
+	else
+		eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
+	fi
+	ctx_commit_phase PHASE4_AMEND_DONE
+	maybe_pause_after_phase AMEND
 fi
 
 ### 5: rebase
 ###
 if test ! -z "${PHASE5_REBASE_FAILED}"
 then
-    continue_mode=continue
-    if test ! -z "${CONT_SKIP}"
-    then continue_mode=skip
-    fi
-    if !                      git rebase --${continue_mode}
-    then
-        echo            "; weld:  rebase --${continue_mode} failed, try again?"
-        do_exit 1 'continue'
-    fi
-    ctx_commit_phase PHASE5_REBASE_FAILED ""
-    PHASE5_REBASE_FAILED=
+	continue_mode=continue
+	if test ! -z "${CONT_SKIP}"
+	then continue_mode=skip
+	fi
+	if !                      git rebase --${continue_mode}
+	then
+		echo            "; weld:  rebase --${continue_mode} failed, try again?"
+		do_exit 1 'continue'
+	fi
+	ctx_commit_phase PHASE5_REBASE_FAILED ""
+	PHASE5_REBASE_FAILED=
 elif {
 	test x${TRACE} != x || \
 		echo "; weld: git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH_SHORT}"
                               git rebase --onto ${REBASE_BASE_BRANCH} ${TO} ${BRANCH_SHORT};
 }
 then
-    PHASE5_REBASE_FAILED=
+	PHASE5_REBASE_FAILED=
 else
-    ctx_commit_phase PHASE5_REBASE_FAILED
-    maybe_continuable "Rebase phase" "git rebase --abort" "${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}"
+	ctx_commit_phase PHASE5_REBASE_FAILED
+	maybe_continuable "Rebase phase" "git rebase --abort" "${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}"
 fi
 
 ### 6: verify and cleanup
 ###
 if test -z "${PHASE5_REBASE_FAILED}"
 then
-    ## Safety check:
-    echo -n "; weld:  verifying:  "
-    if git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT}
-    then
-	echo "OK -- zero diff between old and new versions of '${BRANCH_SHORT}'"
-    else
-	echo "DIFF -- difference between old and new versions of '${BRANCH_SHORT}' !"
-        while true
-        do
-            echo "WARNING: non-zero diff between old and new versions of '${BRANCH_SHORT}'.  What to do:"
-            echo -e "\n   [r]EVIEW / [a]CCEPT or [any-key] to ABORT:"
-            echo -ne "\n  Your choice: "
-            read choice
-            case "${choice}" in
-                r )
-		    echo "You chose REVIEW"
-                    git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT} | less;;
-                a )
-		    echo "You chose ACCEPT"
-                    break;;
-                * )
-		    echo "You chose ABORT"
-                    PHASE5_REBASE_FAILED=t
-                    break;;
-            esac
-        done
-        if test ! -z "${PHASE5_REBASE_FAILED}"
-        then
-            ## Undo the successful rebase that was rejected by user:
-	    git reset --hard
-	    abort_restore_user_context
-        fi
-    fi
-    abort_remove_weld_branches ${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}
+	## Safety check:
+	echo -n "; weld:  verifying:  "
+	if git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT}
+	then
+		echo "OK -- zero diff between old and new versions of '${BRANCH_SHORT}'"
+	else
+		echo "DIFF -- difference between old and new versions of '${BRANCH_SHORT}' !"
+		while true
+		do
+			echo "WARNING: non-zero diff between old and new versions of '${BRANCH_SHORT}'.  What to do:"
+			echo -e "\n   [r]EVIEW / [a]CCEPT or [any-key] to ABORT:"
+			echo -ne "\n  Your choice: "
+			read choice
+			case "${choice}" in
+				r )
+					echo "You chose REVIEW"
+					git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT} | less;;
+				a )
+					echo "You chose ACCEPT"
+					break;;
+				* )
+					echo "You chose ABORT"
+					PHASE5_REBASE_FAILED=t
+					break;;
+			esac
+		done
+		if test ! -z "${PHASE5_REBASE_FAILED}"
+		then
+			## Undo the successful rebase that was rejected by user:
+			git reset --hard
+			abort_restore_user_context
+		fi
+	fi
+	abort_remove_weld_branches ${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}
 fi
 
 set +x
