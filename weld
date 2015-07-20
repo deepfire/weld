@@ -77,27 +77,38 @@ usage() {
     weldmove     +     -    -      TO+1    --no-weld --no-amend                  <to> <from>
     weldrop      -     -    -      TO^1    --drop-commit                         <to>
 
-  Options:
+  Common options:
 
     --branch BRANCH    Use a branch different from HEAD
-    --edit[-message]   Allow editing of the amended commit message
-    --manual-amend     Run git-gui for amending.  Conflicts with --no-amend
+
+  Phase control options:
+
     --no-move          Do not move to TO
     --no-cherry[pick]  Do not cherry-pick FROM-COMMIT
     --no-weld          Do not weld FROM-COMMIT onto TO-COMMIT
     --no-amend         Do not amend TO-COMMIT.  Conflicts with --edit-message
-    --no-mutate        History rewrite mode only, do not change any commits
+    --no-mutate        History rewrite mode only, do not change commit contents
                          Shortcut for --no-{move,cherry,weld,amend}
-    --reauthor[-commit] NICKNAME
-                       Change author of TO-COMMIT to NICKNAME.
     --drop[-commit]    Drop TO-COMMIT.  Implies --no-mutate
 
-    --non-continuable  Always abort on failure, do not suggest --continue.
+  Phase parameter options:
+
+    --edit[-message]   Allow editing of the amended commit message
+    --manual-amend     Run git-gui for amending
+    --reauthor[-commit] NICKNAME
+                       Change author of TO-COMMIT to NICKNAME.
+
+    --non-continuable  Immediately abort on failure, do not ask to continue.
     --continuable      When either a cherry-pick, or a rebase fails, do not
                          disturb the state of failure with weld abort operations
+
+  Session options:
+
     --continue         Restore weld session from ${CTX_STORE} ${CTX_STORED_CMDLINE}
     --cont-skip        Pass --skip to cherry-pick/rebase, instead of --continue
     --abort            Abort weld session
+
+  Debug:
 
     --debug-vars       Print internal variables
     --debug-keep       Keep the temporary branches
