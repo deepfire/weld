@@ -80,6 +80,7 @@ usage() {
   Common options:
 
     --branch BRANCH    Use a branch different from HEAD
+    --force            Don't refuse to work in unclean tree.
 
   Phase control options:
 
@@ -211,6 +212,7 @@ do
 	--pause-after-mutate )                PAUSE_AFTER_MUTATE=t;;
 	--pause-after-amend )                 PAUSE_AFTER_AMEND=t;;
 	--trace )                             TRACE=t;;
+	--force )                             FORCE=t ;;
         --branch )
 		BRANCH="refs/heads/$2"
 		git show-ref --quiet --verify ${BRANCH} ||
@@ -285,8 +287,8 @@ then
 		test x${TRACE} == x || set -x
 		git add --all
 		DIFF_REAPPLY_ON_ERROR="saved-tree-${RANDOM}"
-		git branch "${DIFF_REAPPLY_ON_ERROR}"
 		git commit -m "working tree at ${ORIG_HEAD}"
+		git branch "${DIFF_REAPPLY_ON_ERROR}"
 		FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
 		echo "; weld: saved working tree as commit ${FROM}"
 		git reset --hard HEAD^1
@@ -301,8 +303,13 @@ then
 
 	if git status --porcelain 2>&1 | grep "^??" > /dev/null
 	then
-		echo "FATAL: unstaged changes in working tree -- safe operation impossible."
-		exit 1
+		if test -z "${FORCE}"
+		then
+			echo "FATAL: unstaged changes in working tree -- safe operation impossible."
+			exit 1
+		else
+			echo "WARNING: unstaged changes in working tree -- but --force was passed to override safety check, continuing."
+		fi
 	fi
 
 	if test ! -z "${DROP_COMMIT}"
