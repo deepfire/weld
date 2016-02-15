@@ -277,10 +277,12 @@ if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
 	TO="$1"
 
-	test -z "${TO}" && {
-		usage "TO argument is empty"
+	TOrev=$(git rev-parse --verify "${TO}")
+	test -z "${TOrev}" && {
+		usage "TO argument is invalid: '${TO}'"
 		exit 1
 	}
+	TO=${TOrev}
 
 	if test "$2" = "tree"
 	then
@@ -289,7 +291,7 @@ then
 		DIFF_REAPPLY_ON_ERROR="saved-tree-${RANDOM}"
 		git commit -m "working tree at ${ORIG_HEAD}"
 		git branch "${DIFF_REAPPLY_ON_ERROR}"
-		FROM="$(git show-ref --verify ${ORIG_HEAD} | cut -d' ' -f1)"
+		FROM="$(git rev-parse --verify ${ORIG_HEAD})"
 		echo "; weld: saved working tree as commit ${FROM}"
 		git reset --hard HEAD^1
 		set +x
@@ -314,7 +316,7 @@ then
 
 	if test ! -z "${DROP_COMMIT}"
 	then
-		REBASE_BASE=${TO}^1
+		REBASE_BASE=$(git rev-parse --verify ${TO}^1)
 	else
 		REBASE_BASE=${TO}
 	fi
