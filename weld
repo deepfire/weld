@@ -305,6 +305,7 @@ then
 		then
 			echo "; weld: FROM assumed to be tip of branch ${BRANCH}"
 		fi
+		FROM="$(git rev-parse --verify ${FROM})"
 	fi
 
 	if git status --porcelain 2>&1 | grep "^??" > /dev/null
