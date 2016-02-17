@@ -81,6 +81,7 @@ usage() {
 
     --branch BRANCH    Use a branch different from HEAD
     --force            Don't refuse to work in unclean tree.
+    --yes              Continue in all automatically continuable situations
 
   Phase control options:
 
@@ -180,6 +181,8 @@ GIT_AMEND_AUTHOR=""
 ORIG_HEAD="$(git symbolic-ref HEAD)"
 BRANCH="${ORIG_HEAD}"
 
+YES=
+
 while test -z "${opt_done}"
 do
 	case "$1"
@@ -199,6 +202,7 @@ do
 	--abort )                             ABORT=t;
 					      test -z "${CONTINUE}" ||
 						  error "--continue conflicts with --abort";;
+        --yes )                               YES=t;;
         --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
         --no-move )                           NO_MOVE=t;;
         --no-cherry | --no-cherrypick )       NO_CHERRY=t;;
@@ -271,7 +275,7 @@ done
 ###
 ### Context  (WARNING: doesn't contain NON_CONTINUABLE, CONTINUE and ABORT !)
 ###
-CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE"
+CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE YES"
 
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
@@ -404,7 +408,10 @@ EOF
 	else
 		echo "FIX-manually-then-continue, already-fixed-CONTINUE-now or ABORT?"
 		echo -n "Your choice?  'f'IX / 'c'ONTINUE / 'a'BORT=default  "
-		read fixp
+		if test -z "${YES}"
+		then read fixp
+		else fixp=a
+		fi
 	fi
 	if test x$fixp = xc # User already fixed things, and wants to continue now
 	then
@@ -561,7 +568,10 @@ then
 			echo "WARNING: non-zero diff between old and new versions of '${BRANCH_SHORT}'.  What to do:"
 			echo -e "\n   [r]EVIEW / [a]CCEPT or [any-key] to ABORT:"
 			echo -ne "\n  Your choice: "
-			read choice
+			if test -z "${YES}"
+			then read choice
+			else choice=a
+			fi
 			case "${choice}" in
 				r )
 					echo "You chose REVIEW"
