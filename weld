@@ -2,35 +2,8 @@
 # (c) 2013-2015 Косырев Сергей <_deepfire@feelingofgreen.ru>
 # Licensed under the terms of the GNU GPL License version 3 and higher
 
-# set -e
+. $(dirname $(realpath $0))/libweld.sh
 
-error() {
-	echo "ERROR: $1" >&2
-	exit 1
-}
-
-## Context library
-CTX_STORE=.git/weld-context
-CTX_CMDLINE="$@"
-ctx_path() {
-	echo ${CTX_STORE}
-}
-ctx_present_p() {
-	test -f ${CTX_STORE}
-}
-ctx_save_var() {
-	local var="$1"
-        eval "echo \"${var}=\\\"\${$var}\\\"\"" >> ${CTX_STORE}
-}
-ctx_commit_phase() {
-	local phase=$1
-	local value=$2
-	eval "$1=${2:-t}"
-	ctx_save_var ${phase}
-}
-ctx_continue() {
-	weld --continue
-}
 if ctx_present_p
 then CTX_STORED_CMDLINE="($(grep CTX_CMDLINE ${CTX_STORE}))"
 fi
@@ -75,7 +48,7 @@ usage() {
     weldname     -     -    +      TO+1    --reauthor <nickname>                 <to>
     weldui       -     -    +      TO+X    --no-cherry --no-weld --manual-amend  <to>
     weldmove     +     -    -      TO+1    --no-weld --no-amend                  <to> <from>
-    weldrop      -     -    -      TO^1    --drop-commit                         <to>
+    weldrop      -     -    -      TO~1    --drop-commit                         <to>
 
   Common options:
 
@@ -154,24 +127,6 @@ maybe_pause_after_phase() {
 		echo "; weld:  pausing after phase ${phase}" >&2
 		read foo
 	fi
-}
-
-git_head_ref_shortname() {
-	echo $1 | sed s%refs/heads/%%
-}
-
-git_move_branch() {
-	local branch="$1"
-	local to="$2"
-
-        git checkout --quiet ${branch}
-        git reset --hard ${to}
-}
-
-git_kill_branch() {
-	local branch="$1"
-
-	git branch -D ${b} 2>/dev/null || true
 }
 
 ABORT=
@@ -295,12 +250,12 @@ then
 	then
 		test x${TRACE} == x || set -x
 		git add --all
-		DIFF_REAPPLY_ON_ERROR="saved-tree-${RANDOM}"
+		DIFF_REAPPLY_ON_ERROR="weld-temp-saved-tree-${RANDOM}"
 		git commit -m "working tree at ${ORIG_HEAD}"
 		git branch "${DIFF_REAPPLY_ON_ERROR}"
 		FROM="$(git rev-parse --verify ${ORIG_HEAD})"
 		echo "; weld: saved working tree as commit ${FROM}"
-		git reset --hard HEAD^1
+		git reset --hard HEAD~1
 		set +x
 	else
 		FROM="${2:-${BRANCH}}"
@@ -311,20 +266,11 @@ then
 		FROM="$(git rev-parse --verify ${FROM})"
 	fi
 
-	if git status --porcelain 2>&1 | grep "^??" > /dev/null
-	then
-		if test -z "${FORCE}"
-		then
-			echo "FATAL: unstaged changes in working tree -- safe operation impossible."
-			exit 1
-		else
-			echo "WARNING: unstaged changes in working tree -- but --force was passed to override safety check, continuing."
-		fi
-	fi
+	git_ensure_clean_tree ${FORCE}
 
 	if test ! -z "${DROP_COMMIT}"
 	then
-		REBASE_BASE=$(git rev-parse --verify ${TO}^1)
+		REBASE_BASE=$(git rev-parse --verify ${TO}~1)
 	else
 		REBASE_BASE=${TO}
 	fi
@@ -358,15 +304,6 @@ test x${TRACE} == x || set -x
 ###
 ### Abort library
 ###
-abort_restore_user_context() {
-	git_move_branch ${BRANCH_SHORT} ${BRANCH_BACKUP}
-        git checkout --quiet $(git_head_ref_shortname ${ORIG_HEAD})
-	test -z "${DIFF_REAPPLY_ON_ERROR}" || {
-		git cherry-pick --no-commit ${DIFF_REAPPLY_ON_ERROR}
-		git_kill_branch ${DIFF_REAPPLY_ON_ERROR}
-	}
-}
-
 abort_remove_weld_branches() {
 	local cleanup_branches="$*"
 	test ! -z "${DEBUG_KEEP}" ||
@@ -382,7 +319,7 @@ abort() {
 
 	echo "; weld: aborting operation"
 	${abort_command}
-	abort_restore_user_context
+	abort_restore_user_context ${BRANCH_SHORT} ${BRANCH_BACKUP} ${ORIG_HEAD} ${DIFF_REAPPLY_ON_ERROR}
 	abort_remove_weld_branches ${cleanup_branches}
 }
 
@@ -561,41 +498,7 @@ fi
 if test -z "${PHASE5_REBASE_FAILED}"
 then
 	## Safety check:
-	echo -n "; weld:  verifying:  "
-	if git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT}
-	then
-		echo "OK -- zero diff between old and new versions of '${BRANCH_SHORT}'"
-	else
-		echo "DIFF -- difference between old and new versions of '${BRANCH_SHORT}' !"
-		while true
-		do
-			echo "WARNING: non-zero diff between old and new versions of '${BRANCH_SHORT}'.  What to do:"
-			echo -e "\n   [r]EVIEW / [a]CCEPT or [any-key] to ABORT:"
-			echo -ne "\n  Your choice: "
-			if test -z "${YES}"
-			then read choice
-			else choice=a
-			fi
-			case "${choice}" in
-				r )
-					echo "You chose REVIEW"
-					git diff --exit-code ${BRANCH_BACKUP} ${BRANCH_SHORT} | less;;
-				a )
-					echo "You chose ACCEPT"
-					break;;
-				* )
-					echo "You chose ABORT"
-					PHASE5_REBASE_FAILED=t
-					break;;
-			esac
-		done
-		if test ! -z "${PHASE5_REBASE_FAILED}"
-		then
-			## Undo the successful rebase that was rejected by user:
-			git reset --hard
-			abort_restore_user_context
-		fi
-	fi
+	git_ensure_no_changes "${BRANCH}" "${BACKUP}" "${ORIG_HEAD}" "${DIFF_REAPPLY_ON_ERROR}" "${YES}"
 	abort_remove_weld_branches ${BRANCH_BACKUP} ${REBASE_BASE_BRANCH}
 fi
 
