@@ -124,9 +124,14 @@ run_test "MOVE-UP"                                          \
 	 expect_history    pass 0 2 3 1 4               ";" \
 	 expect_files      pass 0 1 2 3 4
 
-run_test "WELD"                                             \
+run_test "WELD-2-ARG"                                       \
 	 "weld HEAD~3 HEAD~1"                               \
 	 expect_history    pass 0 1 2   4               ";" \
+	 expect_files      pass 0 1 2 3 4
+
+run_test "WELD-1-ARG"                                       \
+	 "weld HEAD~3"                                      \
+	 expect_history    pass 0 1 2 3                 ";" \
 	 expect_files      pass 0 1 2 3 4
 
 run_test "WELDIT"                                           \
