@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. $(dirname $(realpath $0))/libweld.sh
+
 usage() {
     cat <<EOF
   Usage:
@@ -21,6 +23,16 @@ do
 		WELD_EXTRA_OPTIONS+=" ${1} ${2}"
 		shift 2
 		;;
+	--force )
+		FORCE=t
+		WELD_EXTRA_OPTIONS+=" ${1}"
+		shift
+		;;
+	--yes )
+		YES=t
+		WELD_EXTRA_OPTIONS+=" ${1}"
+		shift
+		;;
         "--"* )
 		WELD_EXTRA_OPTIONS+=" ${1}"
 		shift
@@ -34,5 +46,24 @@ done
 ON="$1"
 WHAT="${2:-$(git-head-ref)}"
 
-weld --no-weld --no-amend ${WELD_EXTRA_OPTIONS} "${ON}" "${WHAT}"
+ON_rev=$(git rev-parse --verify ${ON})
+WHAT_rev=$(git rev-parse --verify ${WHAT})
 
+test -n "${ON_rev}"   || echo "ERROR: ON must be a valid git commit specifier, was: '${ON}'"
+test -n "${WHAT_rev}" || echo "ERROR: WHAT must be a valid git commit specifier, was: '${WHAT}'"
+
+if test "$(git merge-base ${ON_rev} ${WHAT_rev})" = "${ON_rev}"
+then
+	weld --no-weld --no-amend ${WELD_EXTRA_OPTIONS} "${ON}" "${WHAT}"
+else
+	set -x
+	git_ensure_clean_tree ${FORCE}
+	temp_on_branch="weld-temp-on-${RANDOM}"
+	head_rev=$(git rev-parse --verify HEAD)
+	head_branch=$(git_head_ref_shortname $(git symbolic-ref HEAD))
+	git checkout -b ${temp_on_branch} ${ON_rev}
+	weld --drop-commit ${WELD_EXTRA_OPTIONS} ${WHAT_rev}
+	git cherry-pick ${WHAT_rev}
+	git rebase --onto ${temp_on_branch} ${ON_rev} ${head_branch}
+	git_ensure_no_changes "${head_branch}" "${head_rev}" "${head_branch}" "" "${YES}"
+fi

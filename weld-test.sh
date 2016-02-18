@@ -120,8 +120,8 @@ run_test "MOVE-DOWN"                                        \
 	 expect_files      pass 0 1 2 3 4
 
 run_test "MOVE-UP"                                          \
-	 "weldmove --yes HEAD~1 HEAD~4"                     \
-	 expect_history    fail 0 3 1 2 4               ";" \
+	 "weldmove --yes HEAD~1 HEAD~3"                     \
+	 expect_history    pass 0 2 3 1 4               ";" \
 	 expect_files      pass 0 1 2 3 4
 
 run_test "WELD"                                             \
