@@ -96,6 +96,8 @@ usage() {
   Phase parameter options:
 
     --edit[-message]   Allow editing of the amended commit message
+    --message MSG      Specify the desired message, instead of asking for it
+                         interactively (see --edit-message above)
     --manual-amend     Run git-gui for amending
     --reauthor[-commit] NICKNAME
                        Change author of TO-COMMIT to NICKNAME.
@@ -175,8 +177,8 @@ git_kill_branch() {
 ABORT=
 CONTINUE=
 
-GIT_AMEND_NO_EDIT_MESSAGE="--no-edit"
-GIT_AMEND_AUTHOR=""
+AMEND_NO_EDIT_MESSAGE="--no-edit"
+AMEND_AUTHOR=""
 
 ORIG_HEAD="$(git symbolic-ref HEAD)"
 BRANCH="${ORIG_HEAD}"
@@ -203,7 +205,8 @@ do
 					      test -z "${CONTINUE}" ||
 						  error "--continue conflicts with --abort";;
         --yes )                               YES=t;;
-        --edit | --edit-message )             GIT_AMEND_NO_EDIT_MESSAGE="";;
+        --edit | --edit-message )             AMEND_NO_EDIT_MESSAGE="";;
+        --message )                           AMEND_MESSAGE="$2"; shift;;
         --no-move )                           NO_MOVE=t;;
         --no-cherry | --no-cherrypick )       NO_CHERRY=t;;
         --no-weld )                           NO_WELD=t;;
@@ -241,7 +244,7 @@ do
 			echo "; weld: resolved author id <$2> to ${full_id}"
 		fi
 		shift
-		GIT_AMEND_AUTHOR="--author \"${full_id}\""
+		AMEND_AUTHOR="--author \"${full_id}\""
 		;;
         --drop | --drop-commit )
 		DROP_COMMIT=t
@@ -275,7 +278,7 @@ done
 ###
 ### Context  (WARNING: doesn't contain NON_CONTINUABLE, CONTINUE and ABORT !)
 ###
-CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND GIT_AMEND_NO_EDIT_MESSAGE GIT_AMEND_AUTHOR DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE YES"
+CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE NO_CHERRY NO_WELD NO_AMEND REAUTHOR_COMMIT DROP_COMMIT MANUAL_AMEND AMEND_NO_EDIT_MESSAGE AMEND_AUTHOR AMEND_MESSAGE DIFF_REAPPLY_ON_ERROR REBASE_BASE_BRANCH BRANCH_BACKUP CTX_CMDLINE YES"
 
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
@@ -520,7 +523,7 @@ then
 	then
 		git gui
 	else
-		eval git commit --amend ${GIT_AMEND_NO_EDIT_MESSAGE} ${GIT_AMEND_AUTHOR}
+		eval git commit --amend ${AMEND_NO_EDIT_MESSAGE} ${AMEND_MESSAGE:+--message="${AMEND_MESSAGE}"} ${AMEND_AUTHOR}
 	fi
 	ctx_commit_phase PHASE4_AMEND_DONE
 	maybe_pause_after_phase AMEND
