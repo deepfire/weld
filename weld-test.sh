@@ -1,5 +1,41 @@
 #!/usr/bin/env bash
 
+usage() {
+	test -z "$1" || echo "ERROR: $1"
+
+	cat <<EOF
+  Usage:
+    $0 OPTIONS*
+
+  Run the test suite for 'weld'.
+
+  Debug:
+
+    --show[-checks]    Trace command invocation
+
+    --help             This.
+
+EOF
+}
+
+while true
+do
+	case "$1" in
+	--show | --show-checks )
+		opt_show_checks=t;;
+	--help )
+		usage; exit 1;;
+        "--"* )
+		error "unknown option: $1";;
+        * )
+		break;;
+	esac
+	shift
+done
+
+###
+### Library
+###
 at_exit() {
 	rm -rf /tmp/weldtest*
 }
@@ -73,6 +109,9 @@ check_one() {
 	     bash
 	     exit 1
 	else
+		if test -n "${opt_show_checks}"
+		then echo -e "--- check:"; cat ${tmpdir}/.git/check; echo
+		fi
 		n_success=$((n_success+1))
 	fi
 }
