@@ -266,7 +266,7 @@ then
 		FROM="$(git rev-parse --verify ${FROM})"
 	fi
 
-	git_ensure_clean_tree ${FORCE}
+	git_ensure_clean_tree "${FORCE}"
 
 	if test ! -z "${DROP_COMMIT}"
 	then
