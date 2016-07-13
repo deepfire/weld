@@ -44,7 +44,7 @@ do
 done
 
 ON="$1"
-WHAT="${2:-$(git-head-ref)}"
+WHAT="${2:-$(git ref $(git symbolic-ref HEAD))}"
 
 ON_rev=$(git rev-parse --verify ${ON})
 WHAT_rev=$(git rev-parse --verify ${WHAT})

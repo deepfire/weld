@@ -31,7 +31,7 @@ do
 done
 
 NICKNAME="$1"
-COMMIT="${2:-$(git-head-ref)}"
+COMMIT="${2:-$(git ref $(git symbolic-ref HEAD))}"
 
 weld --reauthor-commit ${NICKNAME} "${COMMIT}"
 

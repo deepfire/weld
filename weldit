@@ -30,7 +30,7 @@ do
     esac
 done
 
-COMMIT="${1:-$(git-head-ref)}"
+COMMIT="${1:-$(git ref $(git symbolic-ref HEAD))}"
 
 weld --no-cherry --no-weld --edit ${WELD_EXTRA_OPTIONS} "${COMMIT}"
 
