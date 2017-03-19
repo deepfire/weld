@@ -57,7 +57,7 @@ then
 	weld --no-weld --no-amend ${WELD_EXTRA_OPTIONS} "${ON}" "${WHAT}"
 else
 	set -x
-	git_ensure_clean_tree ${FORCE}
+	git_ensure_clean_tree "${FORCE}"
 	temp_on_branch="weld-temp-on-${RANDOM}"
 	head_rev=$(git rev-parse --verify HEAD)
 	head_branch=$(git_head_ref_shortname $(git symbolic-ref HEAD))
