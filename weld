@@ -237,6 +237,9 @@ CTX_VARS="BRANCH BRANCH_SHORT TO FROM ORIG_HEAD REBASE_BASE CONTINUABLE NO_MOVE 
 
 if test -z "${CONTINUE}" -a -z "${ABORT}"
 then
+	### First, ensure that random() works.
+	validate_random
+
 	TO="$1"
 
 	TOrev=$(git rev-parse --verify "${TO}")

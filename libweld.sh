@@ -4,6 +4,15 @@ error() {
 	exit 1
 }
 
+random() {
+	hexdump -n 2 -e '/2 "%u"' /dev/urandom # 'dash' has no ${RANDOM}
+}
+validate_random() {
+	if test -z "$(random)"
+	then error "libweld.sh:random() evaluates to an empty string, which seems not random enough.  Cannot continue."
+	fi
+}
+
 ## Context layer
 CTX_STORE=.git/weld-context
 CTX_CMDLINE="$@"

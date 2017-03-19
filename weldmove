@@ -56,6 +56,9 @@ if test "$(git merge-base ${ON_rev} ${WHAT_rev})" = "${ON_rev}"
 then
 	weld --no-weld --no-amend ${WELD_EXTRA_OPTIONS} "${ON}" "${WHAT}"
 else
+	### First, ensure that random() works.
+	validate_random
+
 	set -x
 	git_ensure_clean_tree "${FORCE}"
 	temp_on_branch="weld-temp-on-${RANDOM}"
