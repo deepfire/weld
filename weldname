@@ -30,8 +30,8 @@ do
     esac
 done
 
-NICKNAME="$1"
-COMMIT="${2:-$(git ref $(git symbolic-ref HEAD))}"
+NICKNAME=$1
+COMMIT=${2:-$(git ref $(git symbolic-ref HEAD))}
 
-weld --reauthor-commit ${NICKNAME} "${COMMIT}"
+weld --reauthor-commit "$NICKNAME" "$COMMIT"
 

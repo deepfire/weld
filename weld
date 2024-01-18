@@ -45,7 +45,7 @@ usage() {
 
     weld         +     +    +      TO+1                                          <to> <from>
     weldit       -     -    +      TO+1    --no-cherry --no-weld --edit          <to>
-    weldname     -     -    +      TO+1    --reauthor <nickname>                 <to>
+    weldname     -     -    +      TO+1    --reauthor <id>                      <to>
     weldui       -     -    +      TO+X    --no-cherry --no-weld --manual-amend  <to>
     weldmove     +     -    -      TO+1    --no-weld --no-amend                  <to> <from>
     weldrop      -     -    -      TO~1    --drop-commit                         <to>
@@ -72,8 +72,9 @@ usage() {
     --message MSG      Specify the desired message, instead of asking for it
                          interactively (see --edit-message above)
     --manual-amend     Run git-gui for amending
-    --reauthor[-commit] NICKNAME
-                       Change author of TO-COMMIT to NICKNAME.
+    --reauthor[-commit] IDENT
+                       Change author of TO-COMMIT to IDENT.
+                         IDENT format is: 'Some One <some.one@some.where>'
 
     --non-continuable  Immediately abort on failure, do not ask to continue.
     --continuable      When either a cherry-pick, or a rebase fails, do not
@@ -191,15 +192,8 @@ do
 		REAUTHOR_COMMIT=t
 		NO_CHERRY=t
 		NO_WELD=t
-		full_id="$(author-id $2)"
-		if test -z "${full_id}"
-		then
-			error "unknown author id: $2"
-		else
-			echo "; weld: resolved author id <$2> to ${full_id}"
-		fi
 		shift
-		AMEND_AUTHOR="--author \"${full_id}\""
+		AMEND_AUTHOR="--author '$2'"
 		;;
         --drop | --drop-commit )
 		DROP_COMMIT=t
